@@ -7,7 +7,7 @@
 # nohup ~/Alice/R_mash/bin/Rscript METG_GWAS_mash_2019-03-21.R &
 
 
-# Read in the random and the strong datasets - random dataset is ~3-4x as big
+# Read in the random and the strong datasets
 # Make sure you've removed doubles and NA's from your dataset - or set Shat NA's
 # to a very large  number so that that condition will be discounted by mashr.
 load_mash_df <- function(path, numSNPs){
@@ -25,6 +25,30 @@ load_mash_df <- function(path, numSNPs){
               S_hat_strong = S_hat_strong, B_hat_random = B_hat_random,
               S_hat_random = S_hat_random))
 }
+
+
+make_Vhat <- function(g2mobj){
+  # estimate data correlation structure using random dataset
+  data_r <- mash_set_data(g2mobj$Bhat_random, g2mobj$Shat_random)
+  z <- g2mobj$Bhat_random/g2mobj$Shat_random
+  max_absz <- apply(abs(z), 1, max)
+  nullish <-  which(max_absz < 1.5)
+  nullish_z <-  z[nullish,]
+  Vhat <- cor(nullish_z)
+  return(Vhat)
+}
+
+make_U_ed <- function(data_strong, saveoutput = FALSE){
+  U_pca = cov_pca(data_strong, 5)
+  U_ed = cov_ed(data_strong, U_pca)
+  if(saveoutput = TRUE){
+    saveRDS(U_ed, file.path(path, paste0(
+      "Mash_data_driven_covariances_", numSNPs, ".rds")))
+    # extreme decomposition takes a long time to run, so save the result.
+  }
+  return(U_ed)
+}
+
 
 mash_standard_run <- function(path, gapit2mash_obj = NA, numSNPs = NA,
                               saveoutput = FALSE, U_ed = NA){
@@ -72,28 +96,6 @@ mash_standard_run <- function(path, gapit2mash_obj = NA, numSNPs = NA,
 
 
 
-
-make_Vhat <- function(g2mobj){
-  # estimate data correlation structure using random dataset
-  data_r <- mash_set_data(g2mobj$Bhat_random, g2mobj$Shat_random)
-  z <- g2mobj$Bhat_random/g2mobj$Shat_random
-  max_absz <- apply(abs(z), 1, max)
-  nullish <-  which(max_absz < 1.5)
-  nullish_z <-  z[nullish,]
-  Vhat <- cor(nullish_z)
-  return(Vhat)
-}
-
-make_U_ed <- function(data_strong, saveoutput = FALSE){
-  U_pca = cov_pca(data_strong, 5)
-  U_ed = cov_ed(data_strong, U_pca)
-  if(saveoutput = TRUE){
-  saveRDS(U_ed, file.path(path, paste0(
-                          "Mash_data_driven_covariances_", numSNPs, ".rds")))
-  # extreme decomposition takes a long time to run, so save the result.
-  }
-  return(U_ed)
-}
 
 
 
