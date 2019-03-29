@@ -13,6 +13,8 @@ Imports:
     dplyr,
     gapit2mashr,
     ggplot2,
+    magrittr,
+    mash,
     purrr,
     rlang,
     readr,
