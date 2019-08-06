@@ -1,0 +1,93 @@
+---
+title: "BLUP anaysis"
+author: "Alice MacQueen"
+date: "8/6/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Present BLUPs/breeding values
+
+```{r load data}
+V_g <- read.table(file.path("..", "..", "CDBN_GxE_Analysis-1_Pheno-Ave",
+                            paste0("Filter_120Ct_MAF1per_CDBN_37yr_pedigree",
+                              "_imputed_names_kinship.txt")),
+             skip = 3, sep = "\t", row.names = 1)
+
+colnames(V_g) <- rownames(V_g)
+Vg <- as.matrix(V_g)
+
+PHE <- list(quote(BM), quote(BR), quote(CB), quote(CM), quote(CT), quote(DF),
+            quote(DM), quote(EV), quote(GH), quote(HB), quote(HI), quote(LG),
+            quote(PH), quote(RR), quote(RU), quote(SA), quote(SF), quote(SW),
+            quote(SY), quote(WM), quote(ZN))
+```
+
+## 
+
+```{r}
+i = 1
+rrblupout <- readRDS(paste0("../data-raw/", PHE[[i]], "_BLUPs_kinship.rds"))
+
+bluptable <- tibble(Phenotype = deparse(PHE[[i]]), V_g = rrblupout$Vg, 
+                    V_e = rrblupout$Ve)
+
+for(i in seq_along(PHE)[-1]){
+  rrblupout <- readRDS(paste0("../data-raw/", PHE[[i]], "_BLUPs_kinship.rds"))
+  bluptable <- add_row(bluptable, Phenotype = deparse(PHE[[i]]), 
+                       V_g = rrblupout$Vg, V_e = rrblupout$Ve)
+}
+
+bluptable <- bluptable %>%
+  mutate(h2 = V_g / (V_g + V_e))
+```
+
+Table:
+Phenotype: Used to get the BLUP solution for the genetic values, or breeding values
+Vg: REML estimate of the genetic variance
+Ve: REML estimate of the error variance
+h2: Narrow sense heritability, Vg / (Vg + Ve)
+
+```{r}
+i = 1
+
+rrblupout <- readRDS(paste0("../data-raw/", PHE[[i]], "_BLUPs_kinship.rds"))
+
+bluprange <- max(rrblupout$g) - min(rrblupout$g)
+ggplot(METG_Seq327) +
+  geom_histogram(aes(x = !! sym(PHE[[i]])))
+
+CIrow <- METG_Seq327 %>%
+  summarise(lowCI = quantile(!! sym(PHE[[i]]), 0.025, na.rm = TRUE),
+            upCI = quantile(!! sym(PHE[[i]]), 0.975, na.rm = TRUE),
+            count = sum(!is.na(!! sym(PHE[[i]]))))
+CItable <- tibble(Phenotype = deparse(PHE[[i]]), `lower bound` = CIrow$lowCI,
+                  `upper bound` = CIrow$upCI, range = bluprange, count = CIrow$count)
+
+for(i in seq_along(PHE)[-1]){
+  rrblupout <- readRDS(paste0("../data-raw/", PHE[[i]], "_BLUPs_kinship.rds"))
+  bluprange <- max(rrblupout$g) - min(rrblupout$g)
+  CIrow <- METG_Seq327 %>%
+  summarise(lowCI = quantile(!! sym(PHE[[i]]), 0.025, na.rm = TRUE),
+            upCI = quantile(!! sym(PHE[[i]]), 0.975, na.rm = TRUE),
+            count = sum(!is.na(!! sym(PHE[[i]]))))
+  CItable <- add_row(CItable, Phenotype = deparse(PHE[[i]]), `lower bound` = CIrow$lowCI,
+                  `upper bound` = CIrow$upCI, range = bluprange, count = CIrow$count)
+}
+
+blupstable <- bluptable %>% 
+  left_join(CItable)
+
+write_csv(blupstable, path = "BLUP_Descriptive_Statistics.csv")
+
+blupstable <- blupstable %>%
+  add_column(sigFDR = c(0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0))
+
+wilcox.test(x = blupstable$count[blupstable$sigFDR == 0], y = blupstable$count[blupstable$sigFDR == 1], paired = FALSE, alternative = "l")
+wilcox.test(x = blupstable$h2[blupstable$sigFDR == 0], y = blupstable$h2[blupstable$sigFDR == 1], paired = FALSE, alternative = "l")
+```
+
