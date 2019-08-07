@@ -13,11 +13,21 @@ LazyData: true
 RoxygenNote: 6.1.1
 Imports: 
     ashr,
+    cluster,
+    cowplot,
     dplyr,
+    GGally,
+    ggplot2,
     magrittr,
+    purrr,
     rlang,
-    tibble
+    stats,
+    stringr,
+    tibble,
+    tidyr,
+    viridis
 Suggests: 
+    dots,
     knitr,
     rmarkdown
 VignetteBuilder: knitr
