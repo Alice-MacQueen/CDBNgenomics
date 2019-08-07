@@ -1,0 +1,40 @@
+# R for travis: see documentation at https://docs.travis-ci.com/user/languages/r
+
+language: R
+cache: packages
+latex: false
+warnings_are_errors: false
+r_build_args: --no-build-vignettes
+r_check_args: --as-cran --ignore-vignettes
+
+env:
+  global:
+    - _R_CHECK_FORCE_SUGGESTS_: false
+    - R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+
+# This is the minimal set of R packages needed to run "R CMD check" on
+# the package.
+install:
+  - R -e 'install.packages(c("assertthat","abind","GGally","mvtnorm","Rcpp","RcppArmadillo","RcppGSL","rmeta","cluster","cowplot","dplyr","ggplot2","magrittr","purrr","readr","rlang","rlist","stats","stringr","tibble","tidyr","tidyselect","viridis","testthat","devtools"))'
+  - R -e 'devtools::install_github("stephens999/ashr")'
+
+before_install:
+  - sudo apt-get install -y libgsl0-dev
+
+r_packages:
+  - covr
+
+bioc_packages: multtest
+bioc_packages: VariantAnnotation
+bioc_packages: GenomicFeatures
+r_github_packages: privefl/bigsnpr
+r_github_packages: lcolladotor/dots
+r_github_packages: stephenslab/mashr@v0.2-11
+r_github_packages: stephens999/ashr
+
+after_success:
+  - Rscript -e 'covr::codecov()'
+
+branches:
+  only:
+  - master

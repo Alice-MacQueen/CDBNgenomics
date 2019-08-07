@@ -20,6 +20,7 @@ Imports:
     ggplot2,
     magrittr,
     purrr,
+    readr,
     rlang,
     stats,
     stringr,
@@ -29,5 +30,6 @@ Imports:
 Suggests: 
     dots,
     knitr,
+    mashr,
     rmarkdown
 VignetteBuilder: knitr

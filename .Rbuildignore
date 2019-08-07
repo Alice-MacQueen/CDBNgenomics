@@ -5,3 +5,4 @@
 ^analysis-raw$
 ^analysis-paper$
 ^R-raw$
+^\.travis\.yml$
