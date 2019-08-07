@@ -1,3 +1,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^data-raw$
+^vignettes/$
+^analysis-raw$
+^analysis-paper$
+^R-raw$

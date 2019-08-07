@@ -6,20 +6,17 @@ Authors@R: person("Alice", "MacQueen", role = c("aut", "cre"), email = "alice.ma
 Description: More about what it does (maybe more than one line)
     Use four spaces when indenting paragraphs within the Description.
 License: GPL (>= 2)
+Depends: 
+    R (>= 3.5)
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.1.1
 Imports: 
+    ashr,
     dplyr,
-    gapit2mashr,
-    ggplot2,
     magrittr,
-    mash,
-    purrr,
     rlang,
-    readr,
-    tibble,
-    tidyr
+    tibble
 Suggests: 
     knitr,
     rmarkdown
