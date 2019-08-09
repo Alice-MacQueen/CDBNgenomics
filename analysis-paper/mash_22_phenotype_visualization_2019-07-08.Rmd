@@ -1,0 +1,370 @@
+---
+title: "Mash on 22 phenotypes Visualization"
+author: "Alice MacQueen"
+date: "April 30, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(cowplot)
+library(ggthemes) # install.packages('ggthemes')
+library(viridis)
+library(grid)
+library(rmeta)
+library(CDBNgenomics)
+library(scales)
+
+theme_oeco <- theme_classic() +
+  theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), 
+        axis.line.x = element_line(size = 0.35, colour = 'grey50'), axis.line.y = element_line(size = 0.35, colour = 'grey50'),
+        axis.ticks = element_line(size = 0.25, colour = 'grey50'), 
+        legend.justification = c(1, 0.75), legend.position = c(1, 0.9), legend.key.size = unit(0.35, 'cm'),
+        legend.title = element_blank(), legend.text = element_text(size = 9),
+        legend.text.align = 0, legend.background = element_blank(),
+        plot.subtitle = element_text(size = 10, vjust = 0), #plot.margin = unit(c(0.35, 0, 0.25, 0), 'cm'),
+        strip.background = element_blank(), strip.text = element_text(hjust = 0.5, size = 10 ,vjust = 0), 
+        strip.placement = 'outside', panel.spacing.x = unit(-0.5, 'cm'))
+```
+
+# Setup
+
+```{r}
+Race_names <- c(
+    `DurangoJalisco` = "Durango/Jalisco",
+    `Mesoamerican` = "Mesoamerican",
+    `Nueva Granada` = "Nueva Granada"
+  )
+
+Det_names <- c(
+    `1` = "Determinate",
+    `2` = "Indeterminate"
+  )
+
+hcl(h = c(15,135,255,75,195,315), c = 100, l = 65)
+# [1] "#F8766D" "#00BA38" "#619CFF"
+
+log10P <- expression(paste("-log"[10], plain(P)))
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+theme_set(theme_oeco)
+```
+
+# Load mash objects
+
+```{r}
+mash_obj <- readRDS("../data-raw/Strong_Effects4000SNPs.rds")
+strong_eff <- readRDS("../data-raw/Pairwise_sharing_Strong_Effects_4000SNPs.rds")
+sign_eff <- readRDS("../data-raw/Pairwise_sharing_sign_Strong_Effects_4000SNPs.rds")
+```
+
+# Panel A
+
+```{r}
+f1a_input <- mash_plot_sig_by_condition(mash_obj, saveoutput = TRUE)
+
+#f1a_in_thinned <- mash_thinned_vis_by_condition(mash_obj = mash_obj, saveoutput = TRUE)
+
+f1a_input[[1]] %>%
+  ggplot(aes(x = Number_of_Conditions, y = Significant_SNPs)) +
+  geom_point() + geom_line() + 
+  labs(x = "Phenotypes", y = "Significant SNPs")
+save_plot(filename = "mash_figure_panel_a.svg", last_plot(), base_aspect_ratio = 1.4, base_height = 1)
+```
+
+
+```{r}
+
+
+#' @title Thin significant mash markers to one per window.
+#'
+#' @description
+#'
+#' @param m An object of type mash
+#' @param cond A vector of conditions
+#' @param numcond Numeric. The number of conditions a SNP is significant in.
+#'     Default is 0.
+#' @param saveoutput Logical. Save plot output to a file? Default is FALSE.
+#' @param window_bp Numeric. The window size in base pairs, within which to
+#'     keep one significant SNP.
+#' @param thresh What is the threshold to call an effect significant? Default is
+#'     0.05.
+#' @param gtoeq Either '>=' or '==': greater-than-or-equal-to or equal to the
+#'     number of conditions
+#'
+#' @return A tbl_df of Marker, Chr, Pos, the number of conditions with
+#'     significant effects, and the minimum local false sign rate (combined
+#'     across all conditions for plotting purposes using the Bonferroni method).
+#'
+#' @import dplyr
+#' @import tibble
+#' @import tidyr
+#'
+#' @note A final analysis should include LD pruning using a program like PLINK.
+#'    However, this can give you a sense of your results for some window_bp
+#'    equivalent to the normal distance at which LD decays.
+#'
+#' @export
+mash_thin_markers <- function(m, cond = NA, numcond = 0, window_bp = 20000,
+                              thresh = 0.05, gtoeq = c(">=", "==")){
+  numcond <- as.integer(numcond)
+  thresh <- as.numeric(thresh)
+  window_bp <- as.integer(window_bp)
+
+  if(is.na(cond)[1]){
+    phe_group <- CDBNgenomics:::get_colnames(m = m)
+  } else { # fix this
+    phe_group <- cond
+  }
+
+  cond_sig_df <- CDBNgenomics:::get_n_significant_conditions(m, thresh = thresh,
+                                              conditions = phe_group) %>%
+    enframe(name = "Marker") %>%
+    rename(Number_of_Conditions = value)
+
+  if(gtoeq == ">="){
+    cond_sig_df <- cond_sig_df %>%
+      filter(Number_of_Conditions >= numcond)
+  } else if (gtoeq == "=="){
+    cond_sig_df <- cond_sig_df %>%
+      filter(Number_of_Conditions == numcond)
+  } else stop("Choose either '>=' or '==': greater-than-or-equal-to or equal to your number of conditions.")
+
+  log10bf_df <- CDBNgenomics:::get_log10bf(m = m) %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "value") %>%
+    mutate(value = as.integer(value)) %>%
+    as_tibble() %>%
+    left_join(CDBNgenomics:::get_marker_df(m = m)) %>%
+    rename(log10BayesFactor = V1)
+
+  cond_sig_df <- cond_sig_df %>%
+    separate(Marker, into = c("Chr", "Pos"), remove = FALSE, sep = 4) %>%
+    mutate(Chr = as.numeric(str_sub(Chr,2,3)),
+           Pos = as.numeric(Pos)) %>%
+    left_join(log10bf_df, by = "Marker")
+
+  minBFinbin <- cond_sig_df %>%
+    arrange(Chr, Pos) %>%
+    #gather(key = "Condition", value = "lfsr", -(1:4)) %>%
+    #group_by(Marker) %>%
+    #filter(lfsr != 0) %>%
+    mutate(Posbin = ceiling(Pos / window_bp)) %>%
+    filter(log10BayesFactor > -log10(thresh)) %>%
+    group_by(Chr, Posbin) %>%
+    slice(which.max(log10BayesFactor)) %>%
+    ungroup() %>%
+    mutate(Poslag = abs(lead(Pos) - Pos),
+           bestBF = case_when(
+             Poslag < window_bp & log10BayesFactor >= lead(log10BayesFactor) ~ "keep1",
+             lag(Poslag) < window_bp & log10BayesFactor >= lag(log10BayesFactor) ~ "keep2",
+             Poslag > window_bp & (lag(Poslag) > window_bp | is.na(lag(Poslag))) ~ "keep3"
+           )
+    ) %>%
+    filter(!is.na(bestBF)) %>%
+    dplyr::select(-Posbin, -Poslag, -bestBF)
+
+  return(minBFinbin)
+}
+
+```
+
+## Panel D E F prep
+```{r}
+DEF_df <- mash_thin_markers(m = mash_obj, gtoeq = ">=", thresh = 0.05)%>%
+  #arrange(desc(Number_of_Conditions)) %>%
+  filter(Number_of_Conditions > 0 & log10BayesFactor > 2) %>%
+  dplyr::select(Marker, log10BayesFactor, everything())
+# get_significant_results(m = mash_obj)[1:5]
+get_significant_results(m = mash_obj)[83:100] # 29225
+
+write_csv(DEF_df %>% dplyr::select(-value), path = "mash_table_output_BFgt2_2019-07-09.csv")
+
+mash_obj$result$lfsr[10866,]
+
+library(rmeta)
+show_col(c("#440154FF", "#BB3754FF"))
+twocol <- c("#000004FF", "#BB3754FF")
+sevencol <- viridis_pal(option = "B")(7)
+show_col(viridis_pal(option = "B")(7))
+
+phenotypes <- str_sub(colnames(mash_obj$result$PosteriorMean), start = 6)
+#phenotypes[6] <- "Earliest_Year_CDBN"
+phe_col_7 <- c(1,3,4,1,1,7,4,1,6,3,1,1,5,3,2,3,4,1,3,3)
+phe_col_2 <- c(2,1,1,2,2,2,1,2,2,1,2,2,1,1,2,1,1,2,1,1)
+phe_info <- tibble(phenotypes, phe_col_7, phe_col_2) %>%
+  mutate(seven_col = sevencol[phe_col_7],
+         two_col = twocol[phe_col_2])
+# nice_phenos$METGPHEN[6] <- "Earliest Year in the CDBN"
+```
+
+```{r}
+library(ashr)
+#' Plot metaplot for an effect based on posterior from mash
+#' @param m the result of a mash fit
+#' @param i index of the effect to plot
+#' @param xlab Character string specifying x-axis label.
+#' @param ylab Character string specifying y-axis label.
+#' @param ... Additional arguments passed to \code{\link[rmeta]{metaplot}}.
+#' @importFrom ashr get_pm get_psd
+#' @importFrom rmeta metaplot
+#' @export
+mash_plot_meta = function(m,i,xlab="Effect size", ylab="Condition",...){
+  metaplot(get_pm(m)[i,],get_psd(m)[i,],xlab=xlab,ylab=ylab,...)
+}
+```
+
+
+# Panels D E F
+```{r, fig.height = 5}
+for(i in c(1,3,14)){
+png(file = paste0("mash_effects_", DEF_df$Marker[i], "_", Sys.Date(), ".png"), width = 3, height = 5.5, 
+     units = "in", res = 600)
+mash_plot_meta(m = mash_obj, 
+                         DEF_df$value[i],
+                         colors = meta.colors(lines = phe_info$seven_col))
+dev.off()
+}
+
+for(i in seq_along(DEF_df$Marker)){
+png(file = paste0("nonPv01effects/mash_effects_", DEF_df$Marker[i], "_", Sys.Date(), ".png"), width = 3, height = 5.5, 
+     units = "in", res = 600)
+mash_plot_meta(m = mash_obj, 
+                         DEF_df$value[i],
+                         colors = meta.colors(lines = phe_info$seven_col))
+dev.off()
+}
+
+
+png(file = paste0("mash_effects_labels_", Sys.Date(), ".png"), width = 11, height = 5.5, units = "in", res = 600)
+mash_plot_meta(m = mash_obj, 
+                         6053, 
+                         labels = nice_phenos$METGPHEN, 
+                         colors = meta.colors(lines = phe_info$seven_col))
+dev.off()
+
+mash_save_effect_plot <- function(mash_obj, i){
+  png(file = paste0("mash_effects_", names(CDBNgenomics:::get_significant_results(m = mash_obj))[i], "_", Sys.Date(), ".png"), width = 3, height = 5.5, 
+     units = "in", res = 600)
+mash_plot_meta(m = mash_obj, 
+                         CDBNgenomics:::get_significant_results(m = mash_obj)[i])
+dev.off()
+}
+
+
+```
+
+## Manhattan Panel B
+
+For each SNP, how many conditions (and which conditions) is it significant in?
+
+```{r}
+mash_BF <- mash_plot_manhattan_by_condition(m = mash_obj, thresh = 0.01, saveoutput = TRUE)
+
+mash_BF$ggman_df %>%
+  arrange(desc(log10BayesFactor))
+
+
+```
+
+
+```{r}
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_BM")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_CB")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_CT")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_DF")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_DM")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_Earliest_Year_CDBN")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_EV")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_GH")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_HB")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_HI")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_LG")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_PH")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_RR")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_RU")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_SA")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_SF")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_SW")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_SY")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_WM")
+mash_plot_manhattan_by_condition(m = mash_obj, cond = "Bhat_ZN")
+
+get_colnames(m = mash_obj)
+```
+
+
+# ------------------------------
+## Correlation Plots 
+
+### Panel C
+
+```{r}
+phenotypes <- str_sub(rownames(strong_eff), start = 6)
+PHE <- c("BM", "BR", "CB", "CM", "CT", "DF", "DM",  "EV", "GH", "HB", "HI", 
+         "LG", "PH", "RR", "RU", "SA", "SF", "SW", "SY", "WM", "ZN")
+METGPHEN <- c("Biomass (kg)", "Blackroot BCMV response", "CBB damage score", 
+              "BCMV presence/absence", "CTV presence/absence", 
+              "Days to flowering", "Days to maturity", "Early vigor score", 
+              "Growth habit", "Halo blight damage score", "Harvest index (%)", 
+              "Lodging score", "Plant height (cm)", "Root rot damage score", 
+              "Rust damage score", "Seed appearance score", 
+              "Seedfill duration (days)", "Seed weight (mg)", 
+              "Seed yield (kg/ha)", "White mold damage score", 
+              "Zinc deficiency damage score")
+nice_phenos <- tibble(PHE, METGPHEN)
+nice_phenos <- nice_phenos %>%
+  right_join(enframe(phenotypes, name = "Name"), by = c("PHE" = "value"))
+nice_phenos$METGPHEN[6] <- "Earliest Year in the CDBN"
+
+colnames(strong_eff) <- nice_phenos$METGPHEN
+row.names(strong_eff) <- nice_phenos$METGPHEN
+# row.names(shared_effects) <- c(paste0(PHE, "_", PHE_Loc))
+
+phenotypess <- str_sub(rownames(sign_eff), start = 6)
+colnames(sign_eff) <- phenotypess
+row.names(sign_eff) <- phenotypess
+```
+
+```{r}
+library(dots)
+pairwise <- mash_plot_pairwise_sharing(corrmatrix = strong_eff, 
+                                       saveoutput = TRUE, base_height = 5,
+                                       max_size = 4, filename = "Pairwise.svg")
+```
+
+
+```{r}
+
+mash_pairwise_sharing_plot <- function(mash_obj, saveoutput = FALSE, filename = "Mash_pairwise_shared_effects_", ...){
+  shared_effects <- get_pairwise_sharing(m = mash_out)
+  
+  corrplot <- shared_effects %>%
+    reorder_cormat(.) %>%
+    ggcorr(data = NULL, cor_matrix = ., geom = "circle", label = FALSE, label_alpha = TRUE, label_size = 3, hjust = 0.95, vjust = .3, layout.exp = 9, min_size = 0, max_size = 3.5) + scale_color_viridis(option = "B")
+  
+  if(saveoutput == TRUE){
+  save_plot(filename = paste0(filename, Sys.Date(), ".svg"), last_plot(), 
+            base_aspect_ratio = 1.1, base_height = 4.5)
+  }
+  return(list(corr_matrix = shared_effects, gg_corr = corrplot))
+}
+
+strong_eff %>%
+  reorder_cormat(.) %>%
+  ggcorr(data = NULL, cor_matrix = ., geom = "circle", label = FALSE, label_alpha = TRUE, label_size = 3, hjust = 0.95, vjust = .3, layout.exp = 9, min_size = 0, max_size = 3.5) + scale_color_viridis(option = "B")
+
+save_plot(filename = "Correlation_plot_mash_strong_effects.svg", last_plot(), 
+          base_aspect_ratio = 1.1, base_height = 4.5)
+
+
+sign_eff %>%
+  reorder_cormat(.) %>%
+  ggcorr(data = NULL, cor_matrix = ., geom = "circle", label = FALSE, label_alpha = TRUE, label_size = 3, hjust = .95, vjust = .3, layout.exp = 9, min_size = 0, max_size = 6.4) + scale_color_viridis(option = "B")
+```
+

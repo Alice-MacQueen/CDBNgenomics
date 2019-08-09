@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/518534/4eabbea92aa3400a9921e7218d5c431c
+bundleId: https://api.rpubs.com/api/v1/document/518534/4eabbea92aa3400a9921e7218d5c431c
+url: http://rpubs.com/alice_macqueen/518534
+when: 1565296455.37579

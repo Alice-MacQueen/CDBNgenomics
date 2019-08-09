@@ -1,0 +1,2436 @@
+---
+title: "CDBN Phenotype Standardization"
+author: "Alice MacQueen"
+date: 2018-03-30
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: false
+    fig_width: 8.09
+    fig_height: 5
+    df_print: paged
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+### Load libraries
+library(tidyverse)  ## the foundations of R for data science
+options(java.parameters = "-Xmx7g")
+library(XLConnect)  ## Read and write Excel files
+# XLConnect needs a x64 version of java which you have to download manually from the java website.
+library(rlang)      ## Programming with the tidyverse
+library(gridExtra)  ## arrange multiple grid-based plots on a page
+library(DT)         ## create interactive tables in RMarkdown documents
+library(lubridate)  ## working with day and time data
+library(CDBNgenomics)
+```
+
+# Overview 
+
+This script takes selected phenotypes from the raw, digitized Cooperative Dry Bean Nursery (CDBN) datasheets from 1981 to 2015. These publicly available datasheets were digitized using optical character recognition and subsequent manual editing that will be described in a future comprehensive data release. This script takes a subset of these data and does the following:
+
+    * Cleans/tidies/transforms CDBN phenotypes into the eight phenotypes used in the paper.
+    * Visualizes and justifies phenotype locations and years that were dropped from the cleaned data.
+    * Filters the data to just keep the eight cleaned phenotypes and the location and year information used in the linear models in the paper.
+    * Returns this table as a new document (available at ________)
+    
+NB: The output of these code sections, particularly all tables and figures, can be visualized at http://rpubs.com/alice_macqueen/CDBN_Phenotype_Standardization 
+NB: If you are viewing the code output at Rpubs, you can reveal any of the hidden code chunks by pressing the "Code" button on the right side of the document.
+
+# Load the raw CDBN data
+
+```{r}
+raw_CDBN_data_list <- readRDS(file.path("C:", "Users", "ahm543", "OneDrive", "NSF Common Bean", "R", "Packages", "CDBNgenomics", "data-raw", "ignore", "Raw_phenotypes_for_S1_cleanup.rds"))
+Phenotypes_cln <- raw_CDBN_data_list$Phenotypes_cln
+
+data(metadata)
+```
+
+# ------------------
+
+# Clean phenotypes and add new phenotypes to `Phenotypes_cln`
+
+This code removes "Genotypes" and CDBN_IDs (entries in the CDBN) that are actually statistical quantities, and replaces blank entries and "-99" entries with NA's.
+
+-99 is equivalent to NA in SAS, which was used in earlier data processing steps.
+
+```{r basic phenotype cleaning, warning=FALSE}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate_if(is.double, funs(na_if(., -99))) %>%
+  mutate_if(is.integer, funs(na_if(., -99))) %>%
+  mutate_if(is.character, funs(na_if(., ""))) %>%
+  filter(!grepl("RUST|LSD|Gallatin", CDBN_ID)) %>%
+  filter(!is.na(CDBN_ID)) %>%
+  arrange(desc(Year))
+
+```
+
+## Data overview.
+
+What variables are present in the raw data, and how many datapoints are available in each column?
+```{r}
+colSums(!is.na(Phenotypes_cln))
+```
+
+# Clean continuous phenotypes and non-disease scores.
+
+## 1. Yield (kg / ha)
+
+Plot yield and look for outliers.
+
+The first plot shows all yield datapoints. This plot shows an excess of small values - a heavy left tail. 
+
+The second and third plots are boxplots of yield separated into different locations and by bean market class, respectively. 
+
+While there are outliers +/- 1.5 IQR above Q3 or below Q1 (the dots in the boxplot), there are very few high outliers when yields are separated by Location or by bean market class. There are low outliers, but we did not drop these, because a normally high-yielding entry can fail to have good yield for any number of environmentally-dependent reasons.
+
+```{r, fig.width = 9, warning=FALSE}
+Phenotypes_cln %>%
+  ggplot(aes(x = Yield_kg_ha)) +
+  geom_histogram()
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Location_code, y = Yield_kg_ha)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Market_class_ahm, y = Yield_kg_ha)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+```
+
+### 1a. Drop rare CDBN entries
+
+This code drops yields for entries where yield was not in three or more environments, and drops environments that don't measure at least three yields. This likely has a negligable impact on downstream analyses. 
+
+```{r Drop entries not measured in at least three environments}
+Phenotypes_cln$Yield_ahm <- Phenotypes_cln$Yield_kg_ha
+
+Var_drop_yield <- Phenotypes_cln %>%
+  group_by(CDBN_ID, Seq_ID) %>%
+  summarise(yield_datapoints = sum(!is.na(Yield_kg_ha))) %>%
+  arrange(yield_datapoints) %>%
+  filter(yield_datapoints <= 4) # Finds 20 observations
+
+Env_drop_yield <- Phenotypes_cln %>%
+  group_by(Location_code) %>%
+  summarise(yield_datapoints = sum(!is.na(Yield_kg_ha))) %>%
+  arrange(yield_datapoints) %>%
+  filter(yield_datapoints <= 4) # Finds 4 observations
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(Yield_ahm = ifelse(CDBN_ID %in% Var_drop_yield$CDBN_ID,
+                            NA,
+                            Yield_ahm),
+         Yield_ahm = ifelse(Location_code %in% Env_drop_yield$Location_code,
+                            NA,
+                            Yield_ahm)
+  ) 
+```
+
+## 2. Clean unit seed weight
+
+Below, we plot seed weight (mg) and look for outliers.
+
+
+
+```{r}
+Phenotypes_cln$Unit_seed_wt_mg_ahm <- Phenotypes_cln$Unit_seed_wt_mg
+```
+
+The third plot is a boxplot of seed weight separated into different locations.
+There are some outliers which seem surprisingly high, particularly in Alberta/ABBR. 
+
+```{r seed weight, warning=FALSE}
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Unit_seed_wt_mg_ahm)) +
+  geom_histogram(binwidth = 50)
+
+Phenotypes_cln %>%
+  ggplot(aes(x = 1, y = Unit_seed_wt_mg_ahm)) +
+  geom_boxplot()
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Location_code, y = Unit_seed_wt_mg_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Race, y = Unit_seed_wt_mg_ahm)) +
+  geom_boxplot(notch = TRUE) 
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Market_class_ahm, y = Unit_seed_wt_mg_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+### 2a. Get rid of negative weights
+
+Remove values of -99 and -990 (which are equivalent to NA in SAS).
+
+```{r}
+Phenotypes_cln %>%
+  filter(Unit_seed_wt_mg_ahm <= 0)
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(Unit_seed_wt_mg = ifelse(Unit_seed_wt_mg == -990,
+                                  NA,
+                                  Unit_seed_wt_mg),
+         Unit_seed_wt_mg_ahm = ifelse((Location_code == "ABBR" & Year == 1997),
+                                      NA,
+                                      Unit_seed_wt_mg_ahm),
+         Unit_seed_wt_mg_ahm = ifelse(Unit_seed_wt_mg_ahm > 800,
+                                      NA,
+                                      Unit_seed_wt_mg_ahm),
+         Unit_seed_wt_mg_ahm = ifelse((Location_code == "WYPO" & Year == 1999),
+                                      NA,
+                                      Unit_seed_wt_mg_ahm),
+         Unit_seed_wt_mg_ahm = ifelse((Location_code == "WYTO" & Year == 2003),
+                                      NA,
+                                      Unit_seed_wt_mg_ahm),
+         Unit_seed_wt_mg_ahm = ifelse((Race == "DurangoJalisco" & Unit_seed_wt_mg_ahm > 550),
+                                      NA,
+                                      Unit_seed_wt_mg_ahm)
+         
+         )
+```
+
+### 2b. Plot high seed weight outliers
+
+What weights are > 750mg?
+
+There are two locations which have seed weights above 750mg. Look at these for errors.
+
+39 rows are >750 mg, 90 rows are > 700 mg.
+
+The plot shows all seed weights measured at ABBR with the points colored by year measured, from 1981 to 2000. 1997 points are blue and are clear outliers.
+
+ABBR in 1997 is an outlier for seed weight. Drop this site*year. ABBR did not take part in the CDBN between 1987 and 1997, and 1997 is an outlier for seed weight. It is possible that the seeds were not dried down sufficiently before they were weighed in ABBR in 1997.
+
+```{r}
+Phenotypes_cln %>%
+  filter(Unit_seed_wt_mg > 760) %>%
+  arrange(Location_code)
+
+Phenotypes_cln %>%
+  filter(Location_code == "ABBR") %>%
+  arrange(Market_class_ahm) %>%
+  dplyr::select(Year, Unit_seed_wt_mg, Market_class_ahm, everything()) %>%
+    ggplot(aes(x = Market_class_ahm, y = Unit_seed_wt_mg)) +
+  geom_jitter(notch = TRUE, aes(color = as.factor(Year))) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+```
+
+The other location with outliers, MISA, are not year specific. The plot below shows all seed weights measured at MISA with the points colored by year measured, from 1981 to 2015.
+
+```{r}
+Phenotypes_cln %>%
+  filter(Location_code == "MISA") %>%
+  arrange(Market_class_ahm) %>%
+  dplyr::select(Year, Unit_seed_wt_mg, Market_class_ahm, everything()) %>%
+    ggplot(aes(x = Market_class_ahm, y = Unit_seed_wt_mg)) +
+  geom_jitter(notch = TRUE, aes(color = as.factor(Year)), alpha = 0.2) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+### 2c. Remove outlier LbY using Race & Market class
+
+As seed size is so bean-type specific, we center the remainder of the search for outlier locations and years on Race & Market class variables.
+
+Many low seed weight outliers likely represents places where the environment is not good to grow beans (there are also very low/poor yields there, in the table below).
+
+However, WYPO in 1999 is an exception to this rule, as it has very small seed sizes for its Nueva Granada beans. 
+
+The plot below shows seed weight for WYPO with the points colored by year, from 1995 to 2001. 1999 is blue and are outliers. WYPO 1999 thus appears to have measured its seed weights differently... they're unusually low across the board for anything that isn't ~200mg weight already. We drop this Year*Location. 
+```{r}
+Phenotypes_cln %>%
+  filter(Race == "Nueva Granada" & Unit_seed_wt_mg_ahm < 250) %>%
+  dplyr::select(Unit_seed_wt_mg_ahm, Year, Location_code, Race, Yield_ahm, CDBN_ID, Seq_ID, everything()) %>%
+  arrange(Location_code)
+
+Phenotypes_cln %>%
+  filter(Location_code == "WYPO" & Year %in% c(1995:2001)) %>%
+  arrange(Market_class_ahm) %>%
+  dplyr::select(Year, Unit_seed_wt_mg, Market_class_ahm, everything()) %>%
+    ggplot(aes(x = Market_class_ahm, y = Unit_seed_wt_mg)) +
+  geom_point(aes(color = as.factor(Year))) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+The plot below shows boxplots of seed weight separated by great northern CDBN entry. A variety IG_GND is close to being an outlier, but on discussion with Jeff White represents real variation within the Great Northern market class.
+
+```{r}
+Phenotypes_cln %>%
+  filter(Race == "DurangoJalisco" & Unit_seed_wt_mg_ahm > 550) %>%
+  dplyr::select(Unit_seed_wt_mg_ahm, Year, Location_code, Race, Yield_ahm, CDBN_ID, Seq_ID, everything()) %>%
+  arrange(Location_code)
+
+Phenotypes_cln %>%
+  filter(Market_class_ahm == "Great Northern") %>%
+  dplyr::select(Year, Unit_seed_wt_mg, Market_class_ahm, everything()) %>%
+    ggplot(aes(x = CDBN_ID, y = Unit_seed_wt_mg_ahm)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+```
+
+
+The plot below shows seed weights in WYTO from 1999 to 2007, with the colors indicating different years. WYTO 2003 has outlier high weights for Black and Small White beans in 2003; remove seed weights for this LbY.
+
+```{r}
+Phenotypes_cln %>%
+  filter(Race == "Mesoamerican" & Unit_seed_wt_mg_ahm > 330) %>%
+  dplyr::select(Unit_seed_wt_mg_ahm, Year, Location_code, Race, Yield_ahm, CDBN_ID, Seq_ID, everything()) %>%
+  arrange(Location_code)
+
+Phenotypes_cln %>%
+  filter(Location_code == "WYTO" & Year %in% c(1999:2007)) %>%
+  arrange(Market_class_ahm) %>%
+  dplyr::select(Year, Unit_seed_wt_mg, Market_class_ahm, everything()) %>%
+    ggplot(aes(x = Market_class_ahm, y = Unit_seed_wt_mg)) +
+  geom_point(aes(color = as.factor(Year))) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+```
+
+## 3. Growth habit
+
+Growth habit has the most unique ways of trait scoring out of any phenotype in the CDBN.
+
+There are two ways to define growth habit: 
+
+    *CIAT classification: 1 = determinate bush; 2 = upright vine; 3 = prostrate vine; a=short/absent vine; b=long/present vine.
+    *Or, the first number can correspond to the CIAT classification; second number indicates internode length with 1 as shortest and 5 as longest. For my classification I'll group 1 and 2 into absent vine and 3-5 to present vine.
+
+Plant_type_eval can also be translated into growth habit. We make columns that correspond to "architecture" on CIAT's scale and "vine" which is the a vs b or the second number, because the CDBN data does not always have the second piece of information.
+
+    *CIAT_ahm: 1 (bush), 2 (upright vine), 3 (prostrate vine)
+    *Vine_ahm: absent (a, or 1-2) or present (b, or 3-5) 
+
+Plant type evaluations were tied to growth habit on the CIAT scale in discussions with Jeff White and Phil McClean. The key is called "Fixing GH 2018-02-12.xlsx" and can be provided upon request. For example, the following evaluations were given the following growth habit classifications:
+    
+    *B:            NA
+    *b-v, viny:    1 b
+    *comp.b-v:     1 b
+    *erect vine:   2 b
+
+The table below shows that growth habit is strongly associated with bean race, and is only slightly more evenly distributed for the Mesoamerican Race.
+
+```{r}
+metadata %>%
+  group_by(Race, Det_scr) %>%
+  summarise(count = n())
+
+```
+
+The next code chunk contains the code to combine three growth habit traits into a phenotype called "CIAT_ahm": this eventually becomes "growth habit". The code outputs the number of datapoints with the different plant type evaluations and growth habits.
+```{r fixing growth habit}
+Phenotypes_cln$GH_ahm <- Phenotypes_cln$Growth_habit
+Phenotypes_cln$GHS_ahm <- Phenotypes_cln$Growth_habit_scr
+Phenotypes_cln$PT_ahm <- Phenotypes_cln$Plant_type_eval
+Phenotypes_cln$CIAT_ahm <- NA
+Phenotypes_cln$Vine_ahm <- NA
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(GH_ahm = ifelse(GH_ahm == "",
+                         NA,
+                         GH_ahm),
+         GHS_ahm = ifelse(GHS_ahm == "",
+                         NA,
+                         GHS_ahm),
+         PT_ahm = ifelse(PT_ahm == "",
+                         NA,
+                         PT_ahm)
+         ) 
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(CIAT_ahm = ifelse(GHS_ahm %in% c(10,11,12),
+                           1,
+                           CIAT_ahm),
+         CIAT_ahm = ifelse(GHS_ahm %in% c(20,21,22),
+                           2,
+                           CIAT_ahm),
+         CIAT_ahm = ifelse(GHS_ahm %in% c(30,31,32),
+                           3,
+                           CIAT_ahm),
+         Vine_ahm = ifelse(GHS_ahm %in% c(10,11,21,30,31),
+                           "a",
+                           CIAT_ahm),
+         Vine_ahm = ifelse(GHS_ahm %in% c(12,22,32),
+                           "b",
+                           CIAT_ahm),
+         CIAT_ahm = ifelse(PT_ahm %in% c("up bu", "up comp bu", "vig bu", "vig.bu", "wide bu", "Wk bu", "b-v, viny", "comp.b-v", "tall open b-v", "tall up b-v", "un up b-v", "vig b-v", "vig,b-v", "Wk,var b-v", "ex up bu", "up wide bu"),
+                           1,
+                           CIAT_ahm),
+         CIAT_ahm = ifelse(PT_ahm %in% c("up s-v", "up s v", "up sv", "v erect sv", "erect vine", "up mod vine", "up vine"),
+                           2,
+                           CIAT_ahm),
+         CIAT_ahm = ifelse(PT_ahm %in% c("vig,viny", "vine"),
+                           3,
+                           CIAT_ahm),
+         Vine_ahm = ifelse(PT_ahm %in% c("up bu", "up comp bu", "vig bu", "vig.bu", "wide bu", "Wk bu", "up s-v", "up s v", "up sv", "v erect sv"),
+                           "a",
+                           Vine_ahm),
+         Vine_ahm = ifelse(PT_ahm %in% c("b-v, viny", "comp.b-v", "tall open b-v", "tall up b-v", "un up b-v", "vig b-v", "vig,b-v", "Wk,var b-v", "erect vine", "up mod vine", "up vine", "V", "vig,viny", "vine", "vlg,viny", "Wk,viny"),
+                           "b",
+                           Vine_ahm),
+         CIAT_ahm = ifelse(GH_ahm %in% c("1", "1A", "1B", "1C"),
+                           1,
+                           CIAT_ahm),
+         CIAT_ahm = ifelse(GH_ahm %in% c("2", "2-3", "2,3", "2a", "2A", "2A-2B", "2A/B", "2AB", "2b", "2B"),
+                           2,
+                           CIAT_ahm),
+         CIAT_ahm = ifelse(GH_ahm %in% c("3", "3A", "3a-3b", "3A-3B", "3b", "3B"),
+                           3,
+                           CIAT_ahm),
+         Vine_ahm = ifelse(GH_ahm %in% c("2a", "2A", "3A", "2/3A", "2A-3A"),
+                           "a",
+                           Vine_ahm),
+         Vine_ahm = ifelse(GH_ahm %in% c("2b", "2B", "3b", "3B", "2B/3"),
+                           "b",
+                           Vine_ahm)
+         )
+
+
+
+## Used the below to work out a reasonable key that was conservative (i.e. when I had no idea I didn't include the data).
+summary(as.factor(Phenotypes_cln$PT_ahm))
+summary(as.factor(Phenotypes_cln$GHS_ahm))
+summary(as.factor(Phenotypes_cln$GH_ahm))
+#  filter(!(is.na(Growth_habit_scr) & is.na(Growth_habit)))
+#  dplyr::select(CDBN_ID, Seq_ID, Location_code, Year, GH_ahm, GHS_ahm, everything()) %>%
+```
+
+
+## 4. Days to flowering
+
+For days to flowering, I combine the days_to_flower and days to bloom 50% traits. 
+
+After consultation with Jeff White, we removed days to flowering of 30 or less, as these are below the lower boundary of possible flowering times.
+
+The plot below shows the distribution of days to flowering.
+
+```{r DTF cleanup}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(DTF_ahm = coalesce(DAYS_TO_FLOWER, DAYS_TO_BLOOM_50_PER)) %>%
+  mutate(DTF_ahm = ifelse(DTF_ahm <= 30, NA, DTF_ahm))
+ 
+Phenotypes_cln %>%
+  ggplot(aes(DTF_ahm)) +
+    geom_histogram()
+```
+
+The plot below shows days to flowering for two locations: CADV and CAOR. From this plot, it looks like values of 33 or less are very uncommon.
+
+```{r}
+Phenotypes_cln %>%
+  filter(Location_code %in% c("CADV", "CAOR")) %>%
+  ggplot(aes(x = Market_class_ahm, y = DTF_ahm)) + 
+  geom_point(aes(shape = Location_code, color = as.factor(Year)))
+
+```
+
+The code chunk below outputs three additional boxplots that separate the days to flowering data by location, bean race, and bean market class. These don't reveal more outliers. 
+```{r}
+Phenotypes_cln %>%
+  ggplot(aes(x = Location_code, y = DTF_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Race, y = DTF_ahm)) +
+  geom_boxplot(notch = TRUE) 
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Market_class_ahm, y = DTF_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+
+## 5. Plant height
+
+Plant height by was created by coalescing `Plant_height` and `Canopy_height` and removing outliers. `Canopy_height` was used preferentially when data was available for this trait, because `Plant_height` can sometimes mean `Plant_length`.
+
+Move outliers that are `Plant_length` to a new column, `Plant_length_ahm`
+
+Jeff White and I discussed reasonable parameters for plant height, and now remove AZBO 1992, IDNA 1991, IDNA 1990, IDTF 1988, MBMO 2001 from plant height, and keep the rest of the data.
+
+The following code chunk contains the cleanup for plant height, and shows the phenotypic distributions for `Plant_height_ahm`, which is the cleaned data, a well as `Plant_length_ahm`.
+
+```{r Plant Height Cleanup}
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(Plant_height_ahm = coalesce(Canopy_height, Plant_height),
+         Plant_height_ahm = ifelse(Plant_height_ahm <= 10, 
+                                   NA, 
+                                   Plant_height_ahm),
+         Plant_length_ahm = ifelse((Location_code == "IDTF" & Year == 1988) | (Location_code == "MBMO" & Year == 2001) | (Location_code == "AZBO" & Year == 1992) | (Location_code == "IDNA" & Year == 1990) | (Location_code == "IDNA" & Year == 1991),
+                                   Plant_height_ahm,
+                                   NA),
+         Plant_height_ahm = ifelse((Location_code == "IDTF" & Year == 1988) | (Location_code == "MBMO" & Year == 2001) | (Location_code == "AZBO" & Year == 1992) | (Location_code == "IDNA" & Year == 1990) | (Location_code == "IDNA" & Year == 1991),
+                                   NA,
+                                   Plant_height_ahm))
+Phenotypes_cln %>%
+  ggplot(aes(Plant_height_ahm)) + 
+    geom_histogram()
+
+Phenotypes_cln %>%
+  ggplot(aes(Plant_length_ahm)) + 
+    geom_histogram()
+```
+
+The code chunk below outputs plots of the low outliers (~<25). The first plot shows plant height at WAOT, with the points colored by year. WAOT did not have clear outliers for plant height.
+
+For ABBI and MOCO, there were also not statistical outliers. ABBR may have had two outlier years, but they only measured plant height for three years, so we can't be certain.
+
+
+```{r}
+Phenotypes_cln %>%
+  filter(Location_code == "WAOT" & Year %in% c(1991:2001)) %>%
+  arrange(Market_class_ahm) %>%
+  dplyr::select(Year, Plant_height_ahm, Market_class_ahm, everything()) %>%
+    ggplot(aes(x = Market_class_ahm, y = Plant_height_ahm)) +
+  geom_point(aes(color = as.factor(Year))) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  ylim(1,75)
+
+Phenotypes_cln %>%
+  filter(Location_code == "ABBR" & !is.na(Plant_height_ahm)) %>%
+  dplyr::select(Plant_height_ahm, everything()) %>%
+  arrange(Location_code) %>%
+  dplyr::select(Plant_height_ahm, Yield_kg_ha, Location_code, Year, everything())
+```
+
+Other ways of plotting plant height (by location, by bean race, and by market class) did not reveal significant outliers.
+```{r}
+Phenotypes_cln %>%
+  ggplot(aes(x = Location_code, y = Plant_height_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Race, y = Plant_height_ahm)) +
+  geom_boxplot(notch = TRUE) 
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Market_class_ahm, y = Plant_height_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+AB, ND, WA, MB may measure plant length sometimes for this value. 
+
+
+
+## 6. Days to maturity
+
+To create a days to maturity variable, we coalesce `DAYS_TO_HARVEST` and `DAYS_TO_MATURITY`. The boxplots below show distributions of these variables, and the new variable we created, `DTM_2`, faceted by location and divided within the facet and colored by year. They only show the three locations where both `DAYS_TO_HARVEST` and `DAYS_TO_MATURITY` were measured.
+
+```{r, fig.width = 10}
+Phenotypes_cln %>%
+  filter(!is.na(DAYS_TO_HARVEST)) %>%
+  ggplot(aes(x = as.factor(Year), y = DAYS_TO_HARVEST)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(DAYS_TO_MATURITY) & Location_code %in% c("MTSI", "NES2", "NESB")) %>%
+  ggplot(aes(x = as.factor(Year), y = DAYS_TO_MATURITY)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  mutate(DTM_2 = coalesce(DAYS_TO_MATURITY, DAYS_TO_HARVEST)) %>%
+  filter(!is.na(DTM_2) & Location_code %in% c("MTSI", "NES2", "NESB")) %>%
+  ggplot(aes(x = as.factor(Year), y = DTM_2)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+```
+
+Other ways of plotting the days to maturity variable that we created (by location, by bean race, and by market class) did not reveal further outliers.
+```{r, warning=FALSE}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(DTM_ahm = coalesce(DAYS_TO_MATURITY, DAYS_TO_HARVEST))
+
+Phenotypes_cln %>%
+  ggplot(aes(x = DTM_ahm)) +
+  geom_histogram()
+
+Phenotypes_cln %>%
+  ggplot(aes(x = 1, y = DTM_ahm)) +
+  geom_boxplot()
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Location_code, y = DTM_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Race, y = DTM_ahm)) +
+  geom_boxplot(notch = TRUE) 
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Market_class_ahm, y = DTM_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+The boxplots below show distributions of days to maturity for both the Andean and Mesoamerican gene pool, faceted by location and divided within the facet and colored by year.
+
+However, we do note that ABBR in 1987 seems to have had very late season maturity... Most of the right tail of the distributions above seem to be clustered in some site*years that could have had unusual weather. Without looking at the weather, these could be reasonable to all include. So we keep all of these days to maturity measurements for now. 
+```{r, fig.width = 10, fig.height = 10}
+Phenotypes_cln %>%
+  filter(DTM_ahm > 130) %>%
+    dplyr::select(DTM_ahm, DTF_ahm, Year, Location_code, Race, Yield_ahm, CDBN_ID, Seq_ID, everything()) %>%
+  arrange(Location_code)
+
+Phenotypes_cln %>%
+  filter(Location_code == "ABBR" & Year %in% c(1981:2001)) %>%
+  arrange(Market_class_ahm) %>%
+  dplyr::select(Year, DTM_ahm, Market_class_ahm, everything()) %>%
+    ggplot(aes(x = Market_class_ahm, y = DTM_ahm)) +
+  geom_point(aes(color = as.factor(Year))) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  ylim(60, 160)
+
+Phenotypes_cln %>%
+  filter(Gene_pool == "Andean") %>%
+  ggplot(aes(x = as.factor(Year), y = DTM_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(Gene_pool == "MA") %>%
+  ggplot(aes(x = as.factor(Year), y = DTM_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+```
+
+## 8. Calculate duration of grainfill
+
+This is days to maturity minus days to flowering, where both of those values are available. We create a new variable `DG_ahm` with this value, and coalesce it with `SF_ahm`. We do this because it's the same range and looks identical cases where I calculated `DG_ahm` and there is a `SF_ahm` trait present in the dataset. However, there are some additional `SF_ahm` year*sites that are added here.
+
+The plot below shows the distribution of `DG_ahm` and `SF_ahm`.
+```{r duration of grainfill, fig.width = 10, fig.height = 10}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(DG_ahm = DTM_ahm - DTF_ahm,
+         SF_ahm = coalesce(DG_ahm, Phenotypes_cln$Seedfill_duration)
+  )
+
+Phenotypes_cln %>%
+  ggplot(aes(x = DG_ahm)) +
+  geom_histogram()
+
+Phenotypes_cln %>%
+  ggplot(aes(x = SF_ahm)) +
+  geom_histogram()
+```
+
+## 9. Emergence/early vigor
+
+We coalesce emergence score with early vigor score, because these phenotypes are defined similarly in the column definitions, and they are both scored on the same scale, but in different locations.
+
+```{r, fig.width = 8, fig.height = 8}
+Phenotypes_cln %>%
+  ggplot(aes(x = Early_vigor_scr)) +
+  geom_histogram()
+
+Phenotypes_cln %>%
+    ggplot(aes(x = Emergence_scr)) +
+  geom_histogram()
+
+Phenotypes_cln %>%
+  filter(!is.na(Early_vigor_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = Early_vigor_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Emergence_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = Emergence_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  mutate(EVG_ahm = coalesce(Emergence_scr, Early_vigor_scr)) %>%
+  filter(!is.na(EVG_ahm)) %>%
+  ggplot(aes(x = as.factor(Year), y = EVG_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(EVG_ahm = coalesce(Emergence_scr, Early_vigor_scr)) 
+
+Phenotypes_cln %>%
+  filter(!is.na(EVG_ahm))
+```
+
+
+## 10. Clean Seed appearance/desirability
+
+Here we made a new metric for seed appearance that combines Seed_appearance_scr, 
+Conclusion: Don't combine desirability, combine the SAD/SAS/SADS columns.
+
+    1. Carefully check each year/site combo as to whether they're scoring out of 1-5 or 1-9, and separate into SAD_1_5 SAD_1_7 and SAD_1_9 
+    2. then combine as SAD_same_scale. 
+    * Got each year*site with data in the pdf's organized below. Don't believe anything else.
+
+1999 MISG 1-9 // MAMO 1-5
+2000 CACH IDPA MAMO WAOT 1-9
+2001 MAMO 1-5 // CADV NDER 1-7 // WAOT 1-9
+2002 Can't find the scale for this but only one column. Should probably drop if I can't find the scale. CADV has to be on a 1-9 scale; 
+MBMO could be on a 1-5 scale like in 2001, so could NDER. WAOT could be on 1-7 or 1-9. Keep CADV and MBMO drop NDER and WAOT.
+2003 WAOT 1-5
+2004 CADV IDPA MISA 1-9 // WAOT 1-5
+2005 CADV MISA 1-9 // WAOT 1-5
+2006 CADV MISA WAOT 1-9
+2007's pdf is missing the data for some reason…
+2008 WAOT 1-9
+2009 WAOT 1-5
+2010 not scored
+2011 not scored
+2012 not scored
+2013 WA 1-5
+2014 WA 1-5
+
+Seed_appearance_scr -> SAS_ahm
+Seed_appear_desir -> SAD_ahm: SAD may have added extra data for this one, most scores (21928) appear to be blank. Ok, as of V1.9.1 this is all blank. And it looks like that data that was in this column is now in Desirability_scr, at a guess. So try re-giving SAD1 below
+Seed_appear_desir_scr -> SADS_ahm
+Seed_quality_scr -> SQS_ahm
+
+```{r}
+Phenotypes_cln$SAS_ahm <- Phenotypes_cln$Seed_appearance_scr
+Phenotypes_cln$SAD1_ahm <- Phenotypes_cln$Desirability_scr
+Phenotypes_cln$SADS_ahm <- Phenotypes_cln$Seed_appear_desir_scr
+Phenotypes_cln$SQS_ahm <- Phenotypes_cln$Seed_quality_scr
+
+summary(as.factor(Phenotypes_cln$Seed_appear_desir))
+
+```
+
+```{r, fig.width = 10, fig.height = 8}
+Phenotypes_cln <- Phenotypes_cln %>%
+  dplyr::select(SAS_ahm, SAD1_ahm, SADS_ahm, SQS_ahm, everything()) %>%
+  mutate(SAD_ahm = ifelse(SAD1_ahm == "",
+                          NA,
+                          SAD1_ahm),
+         SAD_ahm = coalesce(as.numeric(SAD1_ahm), as.numeric(SAS_ahm), as.numeric(SADS_ahm), as.numeric(SQS_ahm)))
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(SAD_ahm = as.numeric(SAD_ahm),
+         SAD_1to5 = ifelse((Location_code %in% c("ABVA", "NDER", "ONEX")) | (Location_code == "MBMO" & Year %in% c(1999, 2001)) | (Location_code == "WAOT" & Year %in% c(2003, 2004, 2005, 2009, 2013, 2014)),
+                           SAD_ahm,
+                           NA),
+         SAD_1to7 = ifelse(Location_code == "MIEN",
+                           SAD_ahm,
+                           NA),
+         SAD_1to9 = ifelse((Location_code %in% c("CACH", "CADV", "IDKI", "IDPA", "MISA")) | (Location_code == "MBMO" & Year == 2000) | (Location_code == "WAOT" & Year %in% c(2000, 2001, 2002, 2006, 2008)),
+                           SAD_ahm,
+                           NA),
+         SAD_1to3 = ifelse(SAD_1to5 < 2.5| SAD_1to7 > 4.5 | SAD_1to9 < 3.5,
+                           1,
+                           NA)
+         #SAD_1to3 = ifelse((between(SAD_1to5,2.5,3.5) | between(SAD_1to7,3.5,4.5) | between(SAD_1to9,3.5,6.5)),
+         #                  2,
+         #                  SAD_1to3),
+         #SAD_1to3 = ifelse(SAD_1to5 > 3.5 | SAD_1to7 < 3.5 | SAD_1to9 > 6.5,
+         #                  3,
+         #                  SAD_1to3)
+                           ) #%>%
+  #dplyr::select(SAD_1to3, SAD_1to5, SAD_1to7, SAD_1to9, everything())
+ # filter(!is.na(SAD_ahm))
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(SAD_1to3 =  ifelse(is.na(SAD_1to3) & (SAD_1to5 > 3.5 | SAD_1to7 < 3.5 | SAD_1to9 > 6.5),
+                            3,
+                            SAD_1to3),
+         SAD_1to3 = ifelse(is.na(SAD_1to3) & (between(SAD_1to5,2.5,3.5) | between(SAD_1to7,3.5,4.5) | between(SAD_1to9,3.5,6.5)),
+                           2,
+                           SAD_1to3)
+  )
+
+Phenotypes_cln %>%
+  filter(!is.na(SAD_1to3))
+                           
+```
+
+
+```{r, fig.width = 10, fig.height = 6}
+Phenotypes_cln %>%
+  filter(!is.na(SAD_1to3)) %>%
+  ggplot(aes(x = as.factor(Year), y = SAD_1to3)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.6, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Desirability_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = Desirability_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.6, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Seed_appearance_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = Seed_appearance_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.6, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Seed_appear_desir_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = Seed_appear_desir_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.6, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+```
+
+
+```{r, fig.width = 10, fig.height = 6}
+Phenotypes_cln %>%
+  filter(!is.na(SQS_ahm)) %>%
+  ggplot(aes(x = as.factor(Year), y = SQS_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(SAD1_ahm) & SAD1_ahm != "") %>%
+  ggplot(aes(x = as.factor(Year), y = SAD1_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+# ggsave(filename = "SAD-Loc-code-and-Year_2018-03-01.bmp", width = 16.18*3, height = 30, units = "in", dpi = 400)
+
+Phenotypes_cln %>%
+  filter(!is.na(SADS_ahm)) %>%
+  ggplot(aes(x = as.factor(Year), y = SADS_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.4, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(SAS_ahm)) %>%
+  ggplot(aes(x = as.factor(Year), y = SAS_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.6, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+```
+
+## 11. Clean biomass
+
+The only datapoints that appear as outliers here are AZKS - much higher than the others - in 2003/2004. But in 2003, those are the actual values for AZKS. So keep them I guess. Still drop values < 1000 or > 10000 because these values are biologically implausible.
+
+```{r, fig.width = 10}
+Phenotypes_cln %>%
+  filter(!is.na(Biomass)) %>%
+  ggplot(aes(x = as.factor(Year), y = Biomass)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Biomass) & Location_code == "AZKS") %>%
+  ggplot(aes(x = as.factor(Year), y = Biomass)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.2, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) #+
+  #facet_wrap(~Location_code)
+
+```
+
+
+
+
+
+```{r}
+Phenotypes_cln$BMS_ahm <- Phenotypes_cln$Biomass 
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(BMS_ahm = ifelse(!is.na(BMS_ahm) & Location_code != "AZKS",
+                          BMS_ahm,
+                          NA))
+```
+
+```{r}
+
+Phenotypes_cln %>%
+  ggplot(aes(x = BMS_ahm)) +
+  geom_histogram()
+
+Phenotypes_cln %>%
+  ggplot(aes(x = 1, y = BMS_ahm)) +
+  geom_boxplot()
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Location_code, y = BMS_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Race, y = BMS_ahm)) +
+  geom_boxplot(notch = TRUE) 
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Market_class_ahm, y = BMS_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+
+## 12. Clean Harvest index
+
+Create a new variable, `HIN_ahm`, which removes harvest index values from AZKS, which Jeff White finds biologically implausible.
+
+```{r}
+Phenotypes_cln$HIN_ahm <- Phenotypes_cln$Harvest_index 
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(HIN_ahm = ifelse(!is.na(HIN_ahm) & Location_code != "AZKS",
+                          HIN_ahm,
+                          NA)) 
+
+```
+
+```{r}
+Phenotypes_cln %>%
+  ggplot(aes(x = HIN_ahm)) +
+  geom_histogram()
+
+Phenotypes_cln %>%
+  ggplot(aes(x = 1, y = HIN_ahm)) +
+  geom_boxplot()
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Location_code, y = HIN_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Race, y = HIN_ahm)) +
+  geom_boxplot(notch = TRUE) 
+
+Phenotypes_cln %>%
+  ggplot(aes(x = Market_class_ahm, y = HIN_ahm)) +
+  geom_boxplot(notch = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+```{r, fig.width = 10}
+Phenotypes_cln %>%
+  filter(!is.na(HIN_ahm)) %>%
+  ggplot(aes(x = as.factor(Year), y = HIN_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+```
+
+## 13. Lodging
+
+There are five variables in the dataset. We coalesce these five variables:
+
+    *Lodging_1_5 
+    *Lodging_1_9
+    *Lodging_0_9
+    *Lodging_per
+    *Lodging_scr
+
+```{r, fig.width = 10}
+Phenotypes_cln %>%
+  filter(!is.na(Lodging_1_5)) %>%
+  mutate(LDG_1_5 = ifelse(!is.na(Lodging_1_5) & Lodging_1_5 > 5.5,
+                          Lodging_1_5/10,
+                          Lodging_1_5)) %>%
+  ggplot(aes(x = as.factor(Year), y = LDG_1_5)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Lodging_1_9)) %>%
+  ggplot(aes(x = as.factor(Year), y = Lodging_1_9)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Lodging_0_9)) %>%
+  mutate(LDG_0_9 = ifelse(!is.na(Lodging_0_9) & Lodging_0_9 > 9.5,
+                          Lodging_0_9/10,
+                          Lodging_0_9)) %>%
+  ggplot(aes(x = as.factor(Year), y = LDG_0_9)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Lodging_per)) %>%
+  mutate(LDG_pr = Lodging_per/10+1) %>%
+  ggplot(aes(x = as.factor(Year), y = LDG_pr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Lodging_scr)) %>%
+  #mutate(LDG_pr = Lodging_per/10+1) %>%
+  ggplot(aes(x = as.factor(Year), y = Lodging_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+```
+
+Lodging_scr: MOCO is 1-5; ABBI is 1-5; IDKI is 1-5; IDPA is 1-5;  NESB is 1-5; 
+WARO is 1-9
+NDFA is 0-9
+
+
+According to my emails with CDBN cooperators, MISA is supposedly always on the 1-5 scale. I bet IDPA is also because there are many years where it's on the 1-5 scale and only 1 where it's supposedly on this 0-9 scale. So only NDFA is actually in the Lodging_0_9 group.
+
+
+```{r, fig.width = 10}
+Phenotypes_cln <- Phenotypes_cln %>%
+    mutate(LDG_ahm = ifelse(!is.na(Lodging_1_5) & Lodging_1_5 > 5.5,
+                          Lodging_1_5 / 10,
+                          Lodging_1_5)) 
+
+Phenotypes_cln %>%
+  mutate(LDG_0_9 = ifelse(!is.na(Lodging_0_9) & Lodging_0_9 > 9.5,
+                          Lodging_0_9 / 10,
+                          Lodging_0_9),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(LDG_0_9) & Location_code %in% c("MISA", "IDPA"),
+                          LDG_0_9,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(LDG_0_9) & Location_code %in% c("NDFA"),
+                          LDG_0_9/2.25 + 1,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_1_9),
+                          Lodging_1_9/2 + 0.5,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_per),
+                          Lodging_per/10 + 1,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_scr) & Location_code %in% c("MOCO", "ABBI", "IDKI", "IDPA", "NESB"),
+                          Lodging_scr,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_scr) & Location_code %in% c("WARO"),
+                          Lodging_scr/2 + 0.5,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_scr) & Location_code %in% c("NDFA"),
+                          Lodging_scr/2.25 + 1,
+                          LDG_ahm)
+         ) %>%
+  filter(!is.na(LDG_ahm)) %>%
+  ggplot(aes(x = as.factor(Year), y = LDG_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(LDG_ahm))
+
+Phenotypes_cln %>%
+  ggplot(aes(x = LDG_ahm)) +
+  geom_histogram()
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(LDG_0_9 = ifelse(!is.na(Lodging_0_9) & Lodging_0_9 > 9.5,
+                          Lodging_0_9 / 10,
+                          Lodging_0_9),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(LDG_0_9) & Location_code %in% c("MISA", "IDPA"),
+                          LDG_0_9,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(LDG_0_9) & Location_code %in% c("NDFA"),
+                          LDG_0_9/2.25 + 1,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_1_9),
+                          Lodging_1_9/2 + 0.5,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_per),
+                          Lodging_per/10 + 1,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_scr) & Location_code %in% c("MOCO", "ABBI", "IDKI", "IDPA", "NESB"),
+                          Lodging_scr,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_scr) & Location_code %in% c("WARO"),
+                          Lodging_scr/2 + 0.5,
+                          LDG_ahm),
+         LDG_ahm = ifelse(is.na(LDG_ahm) & !is.na(Lodging_scr) & Location_code %in% c("NDFA"),
+                          Lodging_scr/2.25 + 1,
+                          LDG_ahm)
+         )
+```
+
+# -----------------
+
+# Disease data overview 
+
+First of all, which of the new disease phenotypes have enough CDBN entries with phenotypes that they'd make sense to try GWAS on?
+
+Do: CBB (240), Rust (278)
+
+Try: BCMV (86), Curly_top_virus (122), Halo_blight (128), Root_rot (104), White_mold (167), Zinc (91)
+
+It's unlikely that these last six will have enough distinct genotypes for successful GWAS, unless there are few loci of really large effect. That's certainly more plausible for, say, disease resistance genes than it would be for other traits.
+
+```{r}
+Phenotypes_cln %>%
+  filter(!is.na(Curly_top_eval) | !is.na(Curly_top_virus_scr) | !is.na(Curly_Top_per) | !is.na(Virus_eval)) %>%
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 122 that were sequenced. Worth a try maybe. Actually 133.
+
+Phenotypes_cln %>%
+  filter(!is.na(CBB_eval) | !is.na(CBB_per) | !is.na(CBB_scr) | !is.na(CBB_Foliage_per_non_innoc)) %>% # 73
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 240 that were sequenced
+
+Phenotypes_cln %>%
+  filter(!is.na(Halo_B_per) | !is.na(Halo_blight_scr) | !is.na(Halo_blight_scr_1) | !is.na(Halo_blight_scr_2) | !is.na(Halo_blight_scr_3) | !is.na(Halo_blight_lvs_per) | !is.na(Halo_blight_pods_per)| !is.na(Blight_Pod_per) | !is.na(Blight_scr)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 128 that were sequenced.  Worth a try I guess.
+
+Phenotypes_cln %>%
+  filter(!is.na(White_mold_scr) | !is.na(White_mold_per) | !is.na(White_mold_eval) | !is.na(White_mold_scr_val2) | !is.na(White_mold_GH) | !is.na(White_mold_stems_per) | !is.na(White_mold_porosity)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 167 that were sequenced. Try it now then.
+
+Phenotypes_cln %>%
+  filter(!is.na(BCMV_eval)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 86 that were sequenced... yeah no. Actually 133. Worth a try I guess.
+
+Phenotypes_cln %>%
+  filter(!is.na(Rust_scr) | !is.na(Rust_scr_c) | !is.na(Rust_CIAT_scr) | !is.na(Rust_per) | !is.na(Rust_eval) | !is.na(Rust_eval_1) | !is.na(Rust_eval_2_) | !is.na(Rust_eval_3) | !is.na(Rust_eval_2)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 278 that were sequenced. Niice.
+
+Phenotypes_cln %>%
+  filter(!is.na(Pod_clearance) ) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 0! that were sequenced for Anthracnose_eval. Empty column it seems.
+# 108 for internode_length_scr so nope.
+# 21 for Powdery_mildew_scr
+# 132 for Yield_day and Yield_Day_Seedfill. No seems pointless.
+# 104 for Biomass_day. No seems pointless.
+# Air_pollut_scr 81 for this and the _per and _rate. So no.
+# Pod_clearance 86. Ok, so no!
+
+Phenotypes_cln %>%
+  filter(!is.na(Fusarium_emerg) | !is.na(Fusarium_seedling_vig) | !is.na(Fusarium_seed_yield) | !is.na(Fusarium_scr) | !is.na(Fusarium_wilt_GH)) %>% # 73
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 64 that were sequenced. Nope.
+
+Phenotypes_cln %>%
+  filter(!is.na(Root_rot_emerg_scr) | !is.na(Root_rot_early_vig_scr) | !is.na(Root_rot_seed_yield) | !is.na(Root_rot_scr) | !is.na(Root_rot_eval)| !is.na(Rhizoc_scr)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 104-105 that were sequenced. 
+
+Phenotypes_cln %>%
+  filter(!is.na(Zinc_dwarfing) | !is.na(Zinc_yellowing) | !is.na(Zinc_defic_eval) | !is.na(Zinc_defic_scr) | !is.na(Zinc_reaction_eval)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 91 that were sequenced. 
+
+```
+
+# Clean disease damage data
+
+## 1. Clean CBB
+
+Use CIAT's scale that converts percents to scores for this cleanup.
+
+Variable definitions:
+
+Common Blight (4) Scale of 1-5 where 1 is no incidence and 5 is severely infected.
+
+Or, on a 1-9 or percentage scale:
+Common bacterial blight
+(Xanthomonas campestris pv. phaseoli)
+Evaluation stages: R6, R8.
+Scale: (Figure 6).
+1. No visible disease symptoms.
+3. Approximately 2% of the leaf surface area covered
+with a few small lesions. Pods are generally free of
+lesions.
+5 . Approximately 5% of the leaf surface area covered by
+small lesions that are beginning to coalesce and
+sometimes encircled by yellow halos resulting in
+minor blight. Lesions on the pods are generally small
+and not coalescing.
+7. Approximately 10% of the leaf surface area covered
+with medium and large lesions which are usually
+accompanied by yellow halos and necrosis. Lesions
+on pods are large and coalescing and often show
+bacterial exudate.
+	9. More than 25% of the leaf surface area with large
+coalescing and generally necrotic lesions resulting in
+defoliation. Lesions on pods coalesce to cover ex
+tensive areas, exhibit abundant bacterial exudation
+which sometimes causes pod malformation and
+empty pods.
+
+Here's the scale to percentage key, same as the Rust key actually
+1 0%        RST_per <= 0.5, 1, RST_per
+~2 1%       between(RST_per,0.5,1.5), 2, RST_per
+3 2%        between(RST_per,1.5,2.5), 3, RST_per
+~4 3.75%    between(RST_per,2.5,4), 4, RST_per
+5 5%        between(RST_per,4,6), 5, RST_per
+~6 7.5%     between(RST_per,6,8, 6, RST_per
+7 10%       between(RST_per,8,14), 7, RST_per
+~8 20%      between(RST_per,14,25), 8, RST_per
+9 25% +     RST_per >= 25, 9, RST_per
+
+Possible variables to coalesce:
+
+CBB_scr
+CBB_per
+CBB_eval # R (1), MR (4), MS(6), S (9)
+CBB_Foliage_per_innoc # don't combine not interested if they put the disease in I think
+CBB_Foliage_per_non_innoc
+CBB_pustule_scr # don't combine just at PRIS
+
+```{r}
+Phenotypes_cln %>%
+  filter(!is.na(CBB_eval) | !is.na(CBB_per) | !is.na(CBB_scr) | !is.na(CBB_Foliage_per_non_innoc)) %>% # 73
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 240 that were sequenced
+
+
+unique(as.factor(Phenotypes_cln$CBB_pustule_scr))
+
+Phenotypes_cln %>%
+  mutate(CBB_eval = ifelse(CBB_eval %in% c("", " "),
+                           NA,
+                           CBB_eval)) %>%
+  filter(!is.na(CBB_eval)) %>%
+  dplyr::select(CBB_eval, CDBN_ID, Location_code, Year, everything())
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(CBB_scr_ahm = ifelse(!is.na(CBB_scr) & Location_code == "NESB" & Year %in% c(1989, 2011),
+                          NA, 
+                          CBB_scr),
+         CBB_per_ahm = coalesce(CBB_per, CBB_Foliage_per_non_innoc),
+         CBB_per_ahm = ifelse(!is.na(CBB_scr) &  Location_code == "NESB" & Year %in% c(1989, 2011),
+                          CBB_scr, 
+                          CBB_per_ahm),
+         CBB_scr_ahm = ifelse(between(CBB_scr_ahm, 0, 5),
+                              (CBB_scr_ahm + 1)*1.5,
+                              CBB_scr_ahm),
+         CBB_eval = ifelse(CBB_eval %in% c("", " "),
+                           NA,
+                           CBB_eval),
+         CBB_scr_ahm = ifelse(CBB_eval %in% c("S"),
+                           9,
+                           CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(CBB_eval %in% c("MS"),
+                           6,
+                           CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(CBB_eval %in% c("MR"),
+                           4,
+                           CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(CBB_eval %in% c("R"),
+                           1,
+                           CBB_scr_ahm),
+         CBB_scr_ahm = as.double(CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & CBB_per_ahm <= 0.5, 1, CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 0.5, 1.5), 2, CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 1.5, 2.5), 3, CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 2.5, 4), 4, CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 4, 6), 5, CBB_scr_ahm),            
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 6, 8), 6, CBB_scr_ahm),              
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 8, 14), 7, CBB_scr_ahm),             
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 14, 25), 8, CBB_scr_ahm),               
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & CBB_per_ahm >= 25, 9, CBB_scr_ahm)                 
+         )
+
+```
+
+```{r, fig.width = 8, fig.height = 8}
+Phenotypes_cln %>%
+  mutate(CBB_scr_ahm = ifelse(!is.na(CBB_scr) & Location_code == "NESB" & Year %in% c(1989, 2011),
+                          NA, 
+                          CBB_scr),
+         CBB_per_ahm = coalesce(CBB_per, CBB_Foliage_per_non_innoc),
+         CBB_per_ahm = ifelse(!is.na(CBB_scr) &  Location_code == "NESB" & Year %in% c(1989, 2011),
+                          CBB_scr, 
+                          CBB_per_ahm),
+         CBB_scr_ahm = ifelse(between(CBB_scr_ahm, 0, 5),
+                              (CBB_scr_ahm + 1)*1.5,
+                              CBB_scr_ahm),
+         CBB_eval = ifelse(CBB_eval %in% c("", " "),
+                           NA,
+                           CBB_eval),
+         CBB_scr_ahm = ifelse(CBB_eval %in% c("S"),
+                           9,
+                           CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(CBB_eval %in% c("MS"),
+                           6,
+                           CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(CBB_eval %in% c("MR"),
+                           4,
+                           CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(CBB_eval %in% c("R"),
+                           1,
+                           CBB_scr_ahm),
+         CBB_scr_ahm = as.double(CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & CBB_per_ahm <= 0.5, 1, CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 0.5, 1.5), 2, CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 1.5, 2.5), 3, CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 2.5, 4), 4, CBB_scr_ahm),
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 4, 6), 5, CBB_scr_ahm),            
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 6, 8), 6, CBB_scr_ahm),              
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 8, 14), 7, CBB_scr_ahm),             
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & between(CBB_per_ahm, 14, 25), 8, CBB_scr_ahm),               
+         CBB_scr_ahm = ifelse(is.na(CBB_scr_ahm) & !is.na(CBB_per_ahm) & CBB_per_ahm >= 25, 9, CBB_scr_ahm)                 
+         ) %>%
+  filter(!is.na(CBB_scr_ahm)) %>%
+  ggplot(aes(x = as.factor(Year), y = CBB_scr_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code) 
+
+Phenotypes_cln %>%
+  filter(!is.na(CBB_scr)) %>%
+  mutate(CBB_scr = ifelse(!is.na(CBB_scr) & Location_code == "NESB" & Year == 1989,
+                          CBB_scr, 
+                          CBB_scr),
+         CBB_scr = ifelse(!is.na(CBB_scr) & (Location_code == "NESB" & Year == 2011) | Location_code == "NENP" | Location_code == "NDER",
+                          CBB_scr, 
+                          CBB_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = CBB_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(CBB_per)) %>%
+  mutate(CBB_per = ifelse(!is.na(CBB_per),
+                          CBB_per,
+                          CBB_per)) %>%
+  ggplot(aes(x = as.factor(Year), y = CBB_per)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(CBB_Foliage_per_non_innoc)) %>%
+  ggplot(aes(x = as.factor(Year), y = CBB_Foliage_per_non_innoc)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  mutate(CBB_ahm = coalesce(CBB_per, CBB_Foliage_per_non_innoc),
+         CBB_ahm = ifelse(is.na(CBB_ahm) & !is.na(CBB_scr),
+                          CBB_scr,
+                          CBB_ahm)) %>%
+  filter(!is.na(CBB_ahm)) %>%
+  ggplot(aes(x = as.factor(Year), y = CBB_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(CBB_ahm = coalesce(CBB_per, CBB_Foliage_per_non_innoc),
+         CBB_ahm = ifelse(is.na(CBB_ahm) & !is.na(CBB_scr),
+                          CBB_scr,
+                          CBB_ahm))
+```
+
+1989 for NESB CBB_scr seems to actually be CBB_per, perhaps. Divide by 5. 
+3 location*years seem to be on a 1-9 scale, so divide by 2 and add 0.5 to convert Lodging on a 1-9 scale to Lodging on a 1-5 scale.
+
+## 2. Clean rust
+
+Possible variables to coalesce:
+
+Rust_scr
+Rust_scr_c
+Rust_CIAT_scr
+Rust_per
+Rust_eval # letters w/ unknown meanings
+Rust_Foliage_per 
+Rust_Pustule_Type # letters and numbers
+
+First thoughts: Coalesce Rust_per and Rust_Foliage_per
+Use rust percentage to scale key from CIAT to convert these to scores
+Coalesce Rust_CIAT_scr with Rust_scr
+Convert Rust_scr_c to a scale and combine with the above.
+Combine scores and percentages.
+
+Here's the scale to percentage key
+1 0%        RST_per <= 0.5, 1, RST_per
+~2 1%       between(RST_per,0.5,1.5), 2, RST_per
+3 2%        between(RST_per,1.5,2.5), 3, RST_per
+~4 3.75%    between(RST_per,2.5,4), 4, RST_per
+5 5%        between(RST_per,4,6), 5, RST_per
+~6 7.5%     between(RST_per,6,8, 6, RST_per
+7 10%       between(RST_per,8,14), 7, RST_per
+~8 20%      between(RST_per,14,25), 8, RST_per
+9 25% +     RST_per >= 25, 9, RST_per
+
+Unfortunately there's not a good equation to use for this...
+
+```{r, fig.width= 9}
+Phenotypes_cln %>%
+  mutate(Rust_scr = ifelse(Rust_scr %in% c("", " "),
+                           NA,
+                           Rust_scr)) %>%
+  filter(!is.na(Rust_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = Rust_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(RST_per = coalesce(Rust_per, Rust_Foliage_per),
+         Rust_scr_c = ifelse(Rust_scr_c %in% c("", " "),
+                           NA,
+                           Rust_scr_c),
+         Rust_scr_c = ifelse(Rust_scr_c %in% c("2,3"),
+                           2.5,
+                           Rust_scr_c),
+         Rust_scr_c = ifelse(Rust_scr_c %in% c("3/4"),
+                           3.5,
+                           Rust_scr_c),
+         Rust_scr_c = ifelse(Rust_scr_c %in% c("4,5"),
+                           4.5,
+                           Rust_scr_c),
+         Rust_scr_c = ifelse(Rust_scr_c %in% c("5,6"),
+                           5.5,
+                           Rust_scr_c),
+         Rust_scr_c = as.double(Rust_scr_c),
+         RST_scr = coalesce(Rust_scr, Rust_CIAT_scr, Rust_scr_c),
+         RST_scr = ifelse(is.na(RST_scr) & !is.na(RST_per) & RST_per <= 0.5, 1, RST_scr),
+         RST_scr = ifelse(is.na(RST_scr) & !is.na(RST_per) & between(RST_per, 0.5, 1.5), 2, RST_scr),
+         RST_scr = ifelse(is.na(RST_scr) & !is.na(RST_per) & between(RST_per, 1.5, 2.5), 3, RST_scr),
+         RST_scr = ifelse(is.na(RST_scr) & !is.na(RST_per) & between(RST_per, 2.5, 4), 4, RST_scr),
+         RST_scr = ifelse(is.na(RST_scr) & !is.na(RST_per) & between(RST_per, 4, 6), 5, RST_scr),            
+         RST_scr = ifelse(is.na(RST_scr) & !is.na(RST_per) & between(RST_per, 6, 8), 6, RST_scr),              
+         RST_scr = ifelse(is.na(RST_scr) & !is.na(RST_per) & between(RST_per, 8, 14), 7, RST_scr),             
+         RST_scr = ifelse(is.na(RST_scr) & !is.na(RST_per) & between(RST_per, 14, 25), 8, RST_scr),               
+         RST_scr = ifelse(is.na(RST_scr) & !is.na(RST_per) & RST_per >= 25, 9, RST_scr)                 
+         ) 
+
+# unique(as.factor(Phenotypes_cln$Rust_scr_c))
+
+
+Phenotypes_cln %>%
+  filter(!is.na(RST_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = RST_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+```
+
+```{r}
+Phenotypes_cln %>%
+  mutate(Rust_scr_c = ifelse(Rust_scr_c %in% c("", " "),
+                           NA,
+                           Rust_scr_c)) %>%
+  filter(!is.na(Rust_scr_c)) %>%
+  ggplot(aes(x = as.factor(Year), y = Rust_scr_c)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Rust_CIAT_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = Rust_CIAT_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Rust_per)) %>%
+  ggplot(aes(x = as.factor(Year), y = Rust_per)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Rust_Foliage_per)) %>%
+  ggplot(aes(x = as.factor(Year), y = Rust_Foliage_per)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+```
+
+## 3. Clean BCMV
+
+evaluations: NE, SL, CM, 5CM, 10N, 7NE, BR, VN, NS, LL, LL/, VA, SN, BCM, BR?
+
+Create a variable that scores BR/SN separately from regular BCMV to try and pull out the entries with a specific gene for resistance to BCMV. 
+
+    *NS = no symptoms = 0
+    *VN = veinal necrosis = 1
+    *VA = variable response = 0.5
+    *LL, LL/ = local lesions = 1
+    *BR, SN, BR? == black root or systemic necrosis. The black root reaction is a systemic necrosis symptom that occurs in entries with a specific gene for resistance to BCMV. entries with this gene are resistant to all strains of BCMV under most conditions. However, when plants growing at high temperature are infected with BCMV, the hypersensitive black root reaction develops. 
+
+coalesce with `Virus_eval` first. Ignore NE, SL, 10N, 7NE, BR, VN, NS, LL, LL/, VA, SN, BR?
+Only include CM, 5CM, and BCM. Second round: add NS, LL, LL/, VA
+
+Other than that, the meaning of these evaluations is unknown.
+
+IDPA 2001, IDKI 1999, IDPA 1988, WARO 1988, IDKI 1984, IDKI 1983. Also found data for 1989 for WAPR and IDKI to include.
+
+Virus_eval might be for BCMV also. 
+
+*Importantly, NA's for the site by year combinations with data indicate resistant lines, not unscored lines. For BCMV there are 11 s by y and 8 years with data:*
+
+IDPA  1988, 1990, 1992, 2001
+IDKI 1983, 1984, 1988, 1989, 1999
+WARO 1988, 1989
+
+Now there are 133 entries, including the NA's.
+
+```{r}
+Phenotypes_cln %>%
+  filter(!is.na(BCMV_eval) | !is.na(Virus_eval)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 86 that were sequenced... yeah no. Actually 133. Worth a try I guess.
+
+Phenotypes_cln %>%
+  filter(!is.na(BCMV_eval) | !is.na(Virus_eval)) %>%
+  dplyr::select(BCMV_eval, Virus_eval, everything()) 
+
+```
+
+
+```{r}
+Phenotypes_cln %>%
+  mutate(CMV_ahm = ifelse((Location_code == "IDPA" & Year %in% c(1988, 1990, 1992, 2001)) | (Location_code == "IDKI" & Year %in% c(1983, 1984, 1988, 1989, 1999)) | (Location_code == "WARO" & Year %in% c(1988, 1989)),
+                          0,
+                          NA),
+         CMV_ahm = ifelse(BCMV_eval %in% c("CM", "5CM", "BCM", "BCMV", "LL", "LL/", "VN", "VA"),
+                          1,
+                          CMV_ahm),
+         CMV_ahm = ifelse(BCMV_eval %in% c("NE", "SL", "10N", "7NE"),
+                          NA,
+                          CMV_ahm),
+         CMV_ahm = ifelse(Virus_eval %in% c("BCMV-VN", "BCMV-MM", "BCMV", "BCMV", "CTV, BCMV", "VN", "BCMV? & CTV", "BCMV?", "CTV&BCMV"),
+                          1,
+                          CMV_ahm),
+         CMV_ahm = ifelse(Location_code == "WARO" & Year == 1989 & CDBN_ID %in% c("NW63", "K0228", "Olathe", "UI114", "Sierra", "D85212", "ISB_82_354", "UI59", "Harris", "GN_WM_85_43", "GN_WM_85_55", "Viva", "55037", "UNS_117", "Flamingo"),
+                          1,
+                          CMV_ahm),
+         CMV_ahm = ifelse(Location_code == "IDKI" & Year == 1989 & CDBN_ID %in% c("UI114", "Sierra", "GN_WM_85_43"),
+                          1,
+                          CMV_ahm)
+         ) %>%
+  filter(!is.na(CMV_ahm)) %>%
+  #group_by(Seq_ID) %>%
+  #summarise(count = n())
+  ggplot(aes(x = as.factor(Year), y = CMV_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+```
+
+```{r}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(CMV_ahm = ifelse((Location_code == "IDPA" & Year %in% c(1988, 1990, 1992, 2001)) | (Location_code == "IDKI" & Year %in% c(1983, 1984, 1988, 1989, 1999)) | (Location_code == "WARO" & Year %in% c(1988, 1989)),
+                          0,
+                          NA),
+         CMV_ahm = ifelse(BCMV_eval %in% c("CM", "5CM", "BCM", "BCMV", "LL", "LL/", "VN", "VA", "SL"),
+                          1,
+                          CMV_ahm),
+         CMV_ahm = ifelse(Virus_eval %in% c("BCMV-VN", "BCMV-MM", "BCMV", "BCMV", "CTV, BCMV", "VN", "BCMV? & CTV", "BCMV?", "CTV&BCMV"),
+                          1,
+                          CMV_ahm),
+         CMV_ahm = ifelse(Location_code == "WARO" & Year == 1989 & CDBN_ID %in% c("NW63", "K0228", "Olathe", "UI114", "Sierra", "D85212", "ISB_82_354", "UI59", "Harris", "GN_WM_85_43", "GN_WM_85_55", "Viva", "55037", "UNS_117", "Flamingo"),
+                          1,
+                          CMV_ahm),
+         CMV_ahm = ifelse(Location_code == "IDKI" & Year == 1989 & CDBN_ID %in% c("UI114", "Sierra", "GN_WM_85_43"),
+                          1,
+                          CMV_ahm)
+         )
+
+```
+
+### 3a. Add blackroot BCMV response phenotype
+
+```{r}
+Phenotypes_cln %>%
+  filter(!is.na(BCMV_eval) | !is.na(Virus_eval)) %>%
+  dplyr::select(BCMV_eval, Virus_eval, everything()) 
+```
+
+
+```{r}
+Phenotypes_cln %>%
+  mutate(BR_ahm = ifelse((Location_code == "IDPA" & Year %in% c(1988, 1990, 1992, 2001)) | (Location_code == "IDKI" & Year %in% c(1983, 1984, 1988, 1989, 1999)) | (Location_code == "WARO" & Year %in% c(1988, 1989)),
+                          0,
+                          NA),
+         BR_ahm = ifelse(BCMV_eval %in% c("NE", "10N", "7NE", "BR", "SN"),
+                          1,
+                          BR_ahm),
+         BR_ahm = ifelse(Virus_eval %in% c("BYMV & BR", "BR"),
+                          1,
+                          BR_ahm),
+         BR_ahm = ifelse(Location_code == "WARO" & Year == 1989 & CDBN_ID %in% c("Aurora", "Fleetwood", "ISB_85_672", "UI114", "Sierra", "D85212", "Viva", "Midnight", "UI906", "ISB_82_772"),
+                          1,
+                          BR_ahm),
+         BR_ahm = ifelse(Location_code == "IDKI" & Year == 1989 & CDBN_ID %in% c("Aurora", "Fleetwood", "UI137", "Mayflower", "ISB_85_672", "Yolano", "Flamingo", "Midnight", "UI906"),
+                          1,
+                          BR_ahm)
+         ) %>%
+  filter(!is.na(BR_ahm)) %>%
+  #group_by(Seq_ID) %>%
+  #summarise(count = n())
+  ggplot(aes(x = as.factor(Year), y = BR_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+  
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(BR_ahm = ifelse((Location_code == "IDPA" & Year %in% c(1988, 1990, 1992, 2001)) | (Location_code == "IDKI" & Year %in% c(1983, 1984, 1988, 1989, 1999)) | (Location_code == "WARO" & Year %in% c(1988, 1989)),
+                          0,
+                          NA),
+         BR_ahm = ifelse(BCMV_eval %in% c("NE", "10N", "7NE", "BR", "SN"),
+                          1,
+                          BR_ahm),
+         BR_ahm = ifelse(Virus_eval %in% c("BYMV & BR", "BR"),
+                          1,
+                          BR_ahm),
+         BR_ahm = ifelse(Location_code == "WARO" & Year == 1989 & CDBN_ID %in% c("Aurora", "Fleetwood", "ISB_85_672", "UI114", "Sierra", "D85212", "Viva", "Midnight", "UI906", "ISB_82_772"),
+                          1,
+                          BR_ahm),
+         BR_ahm = ifelse(Location_code == "IDKI" & Year == 1989 & CDBN_ID %in% c("Aurora", "Fleetwood", "UI137", "Mayflower", "ISB_85_672", "Yolano", "Flamingo", "Midnight", "UI906"),
+                          1,
+                          BR_ahm)
+         )
+```
+
+
+## 4. Clean Curly top virus
+
+From perusal of the metadata surrounding the raw CDBN datasets from the NAL, the NA data for `Curly_top_eval` actually means the absence of the virus, or 0/R/resistant individuals. That increases the number of entries with data.
+
+`Virus_eval` is for BCMV also. 
+
+Make R individuals explicit in each variable first, and then coalesce. 
+
+`Curly_Top_per` is scored in: WARO 1992 1986 WAOT 1986
+
+There are also 133 genotypes with CTV evaluation. Probably the same set.
+
+```{r}
+Phenotypes_cln %>%
+  filter((Location_code == "WARO" & Year %in% c(1986, 1992)))
+Phenotypes_cln %>%
+  filter((Location_code == "WAOT" & Year %in% c(2002, 1992)))
+
+
+Phenotypes_cln %>%
+  mutate(CTP = Curly_Top_per,
+         CTP = ifelse(((Location_code == "WARO" & Year %in% c(1986, 1992)) | (Location_code == "WAOT" & Year == 1986)) & is.na(CTP),
+                      0,
+                    CTP),
+         CTVS = Curly_top_virus_scr,
+         CTVS = ifelse(((Location_code == "WARO" & Year %in% c(1994, 2000)) | (Location_code == "WAOT" & Year %in% c(1992, 2002))) & is.na(CTVS),
+                       1,
+                       CTVS),
+         CTV_ahm = ifelse(((Location_code == "IDPA" & Year %in% c(1988, 1990, 1992)) | (Location_code == "IDKI" & Year %in% c(1988, 1989, 1992)) | (Location_code == "WARO" & Year %in% c(1988, 1989, 1990)) | (Location_code == "WAOT" & Year %in% c(1988))),
+                          0,
+                          NA),
+         CTV_ahm = ifelse(Curly_top_eval %in% c("CTV", "sev CTV"),
+                          1,
+                          CTV_ahm),
+         CTV_ahm = ifelse(Virus_eval %in% c("CTV", "sev CTV", "CTV, BCMV", "CTV & AMV"),
+                          1,
+                          CTV_ahm),
+         CTV_ahm = ifelse(Location_code == "WARO" & Year == 1989 & CDBN_ID %in% c("GN_WM_85_43", "ISB_85_672", "UI906", "Redkloud", "Montcalm"),
+                          1,
+                          CTV_ahm),
+         CTV_ahm = ifelse(CTVS >= 1.1  & is.na(CTV_ahm),
+                          1,
+                          CTV_ahm),
+         CTV_ahm = ifelse(CTP >= 1 & is.na(CTV_ahm),
+                          1,
+                          CTV_ahm),
+                  CTV_ahm = ifelse(CTVS <= 1  & is.na(CTV_ahm),
+                          0,
+                          CTV_ahm),
+         CTV_ahm = ifelse(CTP <= 0.99 & is.na(CTV_ahm),
+                          0,
+                          CTV_ahm)
+  ) %>%
+  filter(!is.na(CTV_ahm)) %>%
+  dplyr::select(CTV_ahm, CTV_ahm, Curly_Top_per, Curly_top_virus_scr, Location_code, Year, CDBN_ID, everything()) %>%
+  group_by(Seq_ID) %>%
+  summarise(count = n())
+         
+         
+   
+         
+```
+
+
+```{r}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(CTP = Curly_Top_per,
+         CTP = ifelse(((Location_code == "WARO" & Year %in% c(1986, 1992)) | (Location_code == "WAOT" & Year == 1986)) & is.na(CTP),
+                      0,
+                    CTP),
+         CTVS = Curly_top_virus_scr,
+         CTVS = ifelse(((Location_code == "WARO" & Year %in% c(1994, 2000)) | (Location_code == "WAOT" & Year %in% c(1992, 2002))) & is.na(CTVS),
+                       1,
+                       CTVS),
+         CTV_ahm = ifelse(((Location_code == "IDPA" & Year %in% c(1988, 1990, 1992)) | (Location_code == "IDKI" & Year %in% c(1988, 1989, 1992)) | (Location_code == "WARO" & Year %in% c(1988, 1989, 1990)) | (Location_code == "WAOT" & Year %in% c(1988))),
+                          0,
+                          NA),
+         CTV_ahm = ifelse(Curly_top_eval %in% c("CTV", "sev CTV"),
+                          1,
+                          CTV_ahm),
+         CTV_ahm = ifelse(Virus_eval %in% c("CTV", "sev CTV", "CTV, BCMV", "CTV & AMV"),
+                          1,
+                          CTV_ahm),
+         CTV_ahm = ifelse(Location_code == "WARO" & Year == 1989 & CDBN_ID %in% c("GN_WM_85_43", "ISB_85_672", "UI906", "Redkloud", "Montcalm"),
+                          1,
+                          CTV_ahm),
+         CTV_ahm = ifelse(CTVS >= 1.1  & is.na(CTV_ahm),
+                          1,
+                          CTV_ahm),
+         CTV_ahm = ifelse(CTP >= 1 & is.na(CTV_ahm),
+                          1,
+                          CTV_ahm),
+                  CTV_ahm = ifelse(CTVS <= 1  & is.na(CTV_ahm),
+                          0,
+                          CTV_ahm),
+         CTV_ahm = ifelse(CTP <= 0.99 & is.na(CTV_ahm),
+                          0,
+                          CTV_ahm)
+  )
+```
+
+
+
+```{r, fig.height = 8}
+Phenotypes_cln %>%
+  filter(!is.na(Curly_top_eval) | !is.na(Curly_top_virus_scr) | !is.na(Curly_Top_per) | !is.na(Virus_eval)) %>%
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 122 that were sequenced. Worth a try maybe.
+
+Phenotypes_cln %>%
+  filter(!is.na(Curly_top_eval)) %>%
+  dplyr::select(Curly_top_eval, Location_code, Year, CDBN_ID, everything())
+
+Phenotypes_cln %>%
+  filter(!is.na(Virus_eval)) %>%
+  dplyr::select(Virus_eval, Location_code, Year, CDBN_ID, everything())
+
+
+Phenotypes_cln %>%
+  filter(!is.na(Curly_top_virus_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = Curly_top_virus_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+Phenotypes_cln %>%
+  filter(!is.na(Curly_Top_per)) %>%
+  ggplot(aes(x = as.factor(Year), y = Curly_Top_per)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+
+```
+
+## 5. Halo blight
+
+136 CDBN entries were scored.
+
+11 site * year combinations were scored. 
+```{r}
+Phenotypes_cln <- Phenotypes_cln %>%
+  dplyr::select(CDBN_ID:Unit_seed_wt_mg, everything())
+```
+
+```{r}
+Phenotypes_cln %>%
+  filter(!is.na(Halo_B_per) | !is.na(Halo_blight_scr) | !is.na(Halo_blight_scr_1) | !is.na(Halo_blight_scr_2) | !is.na(Halo_blight_scr_3) | !is.na(Halo_blight_lvs_per) | !is.na(Halo_blight_pods_per)| !is.na(Blight_Pod_per) | !is.na(Blight_scr)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 128 that were sequenced.  Worth a try I guess.
+
+
+Phenotypes_cln %>%
+  filter(!is.na(Halo_B_per)) # 70 scored NENP 1992 NESB 1992 no issues with NA = 0
+
+Phenotypes_cln %>%
+  filter(!is.na(Halo_blight_scr)) # 134 NDHA 2015 (1-7) NESB 1995 1993 1981 (1-5)
+
+Phenotypes_cln %>%
+  filter(!is.na(Halo_blight_scr)) %>%
+  ggplot(aes(x = as.factor(Year), y = Halo_blight_scr)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+## Halo_blight_scr_1 NESB 1982 (1-5)
+## Halo_blight_scr_2 NESB 1982 ignore
+## Halo_blight_scr_3 NESB 1982 ignore
+## Blight_scr        COFC 1985 MISA 1991 (1-5)
+## Halo_blight_lvs_per WYPO 1987 (0-100)
+## Halo_blight_pods_per WYPO 1987 ignore
+## Blight_Pod_per NENP 1986
+## Halo_B_per NENP 1992 NESB 1992 (0-60)
+## Halo_blight_scr NDHA 2015 (1-7) NESB 1995 1993 1981 (1-5)
+
+Phenotypes_cln %>%
+  mutate(HB_ahm = ifelse((Location_code == "NESB" & Year %in% c(1981, 1982, 1992, 1993, 1995)) | (Location_code == "COFC" & Year == 1985) | (Location_code == "MISA" & Year == 1991) | (Location_code == "WYPO" & Year == 1987) | (Location_code == "NENP" & Year %in% c(1986, 1992)) | (Location_code == "NDHA" & Year == 2015),
+                         1,
+                         NA),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr_1),
+                          Halo_blight_scr_1,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Blight_scr),
+                          Blight_scr,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Blight_scr),
+                          Blight_scr,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & Location_code == "NESB",
+                          Halo_blight_scr,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 0.5, 1.5) & Location_code == "NDHA",
+                          1,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 1.5, 2.5) & Location_code == "NDHA",
+                          1.67,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 2.5, 3.5) & Location_code == "NDHA",
+                          2.33,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 3.5, 4.5) & Location_code == "NDHA",
+                          3,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 4.5, 5.5) & Location_code == "NDHA",
+                          3.67,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 5.5, 6.5) & Location_code == "NDHA",
+                          4.33,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 6.5, 7.5) & Location_code == "NDHA",
+                          5,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_lvs_per),
+                          Halo_blight_lvs_per/25 + 1,
+                          HB_ahm),
+         HB_ahm = ifelse(HB_ahm == 1 & !is.na(Blight_Pod_per),
+                          Blight_Pod_per/25 + 1,
+                          HB_ahm),
+         HB_ahm = ifelse(HB_ahm == 1 & !is.na(Halo_B_per),
+                          Halo_B_per/25 + 1,
+                          HB_ahm)
+  ) %>%
+  filter(!is.na(HB_ahm)) %>%
+  dplyr::select(HB_ahm, Halo_blight_scr, Halo_B_per, Blight_Pod_per, Location_code, Year, CDBN_ID, everything()) %>%
+  ggplot(aes(x = as.factor(Year), y = HB_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+   #%>%
+  #group_by(Seq_ID) %>%
+  #summarise(count = n())
+         
+```
+1, 1.67, 2.33, 3, 3.67, 4.33, 5
+
+Dividing the percentages by 25 then adding 1 right now. This may not be the best way to translate percentage infected tissue to scores for Halo blight, but I can't find any methodology to indicate a better way to do this.
+
+Finally, add a new HB variable to the Phenotypes datasheet:
+
+```{r}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(HB_ahm = ifelse((Location_code == "NESB" & Year %in% c(1981, 1982, 1992, 1993, 1995)) | (Location_code == "COFC" & Year == 1985) | (Location_code == "MISA" & Year == 1991) | (Location_code == "WYPO" & Year == 1987) | (Location_code == "NENP" & Year %in% c(1986, 1992)) | (Location_code == "NDHA" & Year == 2015),
+                         1,
+                         NA),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr_1),
+                          Halo_blight_scr_1,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Blight_scr),
+                          Blight_scr,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Blight_scr),
+                          Blight_scr,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & Location_code == "NESB",
+                          Halo_blight_scr,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 0.5, 1.5) & Location_code == "NDHA",
+                          1,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 1.5, 2.5) & Location_code == "NDHA",
+                          1.67,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 2.5, 3.5) & Location_code == "NDHA",
+                          2.33,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 3.5, 4.5) & Location_code == "NDHA",
+                          3,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 4.5, 5.5) & Location_code == "NDHA",
+                          3.67,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 5.5, 6.5) & Location_code == "NDHA",
+                          4.33,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_scr) & between(Halo_blight_scr, 6.5, 7.5) & Location_code == "NDHA",
+                          5,
+                          HB_ahm),
+         HB_ahm = ifelse(!is.na(Halo_blight_lvs_per),
+                          Halo_blight_lvs_per/25 + 1,
+                          HB_ahm),
+         HB_ahm = ifelse(HB_ahm == 1 & !is.na(Blight_Pod_per),
+                          Blight_Pod_per / 25 + 1,
+                          HB_ahm),
+         HB_ahm = ifelse(HB_ahm == 1 & !is.na(Halo_B_per),
+                          Halo_B_per / 25 + 1,
+                          HB_ahm)
+  )
+  
+```
+
+## 6. Root rot damage (Fusarium)
+
+123-126ish entries were scored.
+
+### 6a. Which site*year combinations scored root rot? 
+
+There are 7 of these.
+
+```{r}
+Phenotypes_cln %>%
+  filter(!is.na(Root_rot_emerg_scr) | !is.na(Root_rot_early_vig_scr) | !is.na(Root_rot_seed_yield) | !is.na(Root_rot_scr) | !is.na(Root_rot_eval)| !is.na(Fusarium_emerg) | !is.na(Fusarium_seedling_vig) | !is.na(Fusarium_seed_yield) | !is.na(Fusarium_scr) | !is.na(Fusarium_wilt_GH)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 123 that were sequenced. 
+
+Phenotypes_cln %>%
+  filter(!is.na(Root_rot_eval)) %>%
+  dplyr::select(Root_rot_eval, everything()) # L, M, S, what? According to the dataset: L: light, M: moderate, S: severe. Also this is Fusarium root rot... so add those
+
+Phenotypes_cln %>%
+  filter(!is.na(Fusarium_seedling_vig)) %>%
+  ggplot(aes(x = as.factor(Year), y = Fusarium_seedling_vig)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+## Root_rot_emerg_scr WARO 2000 IGNORE
+## Root_rot_early_vig_scr WARO 2000 (1-5)
+## Root_rot_seed_yield WARO 2000 IGNORE
+## Root_rot_scr NESB 1991 (1-5) WARO 1994 (1-9)
+## Rhizoc_scr WARO 1994 IGNORE
+## Root_rot_eval WARO 1982 blank = 1 L = 2 M = 5 S = 8
+## Fusarium_emerg WARO 1999 IGNORE
+## Fusarium_seedling_vig WARO 1999 (1-9) with one value that should be divided by 10
+## Fusarium_scr WARO 1986 (1-9)
+## Fusarium_seed_yield WARO 1999 IGNORE
+## Fusarium_wilt_GH COF2 2000 (1-9)
+
+# Now test fixes for these variables
+
+Phenotypes_cln %>%
+  mutate(RR_ahm = ifelse((Location_code == "WARO" & Year %in% c(2000, 1994, 1982, 1999, 1986)) | (Location_code == "COF2" & Year == 2000) | (Location_code == "NESB" & Year == 1991),
+                         1,
+                         NA),
+         RR_ahm = ifelse(!is.na(Root_rot_early_vig_scr),
+                          (Root_rot_early_vig_scr - 0.5)*2,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_scr) & Location_code == "NESB",
+                          (Root_rot_scr - 0.5)*2,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_scr) & Location_code == "WARO",
+                          Root_rot_scr,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Fusarium_seedling_vig) & Fusarium_seedling_vig <= 10,
+                          Fusarium_seedling_vig,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Fusarium_seedling_vig) & Fusarium_seedling_vig >= 10,
+                          Fusarium_seedling_vig / 10,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Fusarium_scr),
+                          Fusarium_scr,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Fusarium_wilt_GH),
+                          Fusarium_wilt_GH,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_eval) & Root_rot_eval == "L",
+                          2,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_eval) & Root_rot_eval == "M",
+                          5,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_eval) & Root_rot_eval == "S",
+                          8,
+                          RR_ahm)
+  ) %>%
+  filter(!is.na(RR_ahm)) %>%
+  #group_by(Seq_ID) %>%
+  #summarise(count = n())
+  ggplot(aes(x = as.factor(Year), y = RR_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+```
+
+### 6n. Add `RR_ahm` as a new variable in the Phenotypes dataset
+
+```{r}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(RR_ahm = ifelse((Location_code == "WARO" & Year %in% c(2000, 1994, 1982, 1999, 1986)) | (Location_code == "COF2" & Year == 2000) | (Location_code == "NESB" & Year == 1991),
+                         1,
+                         NA),
+         RR_ahm = ifelse(!is.na(Root_rot_early_vig_scr),
+                          (Root_rot_early_vig_scr - 0.5)*2,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_scr) & Location_code == "NESB",
+                          (Root_rot_scr - 0.5)*2,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_scr) & Location_code == "WARO",
+                          Root_rot_scr,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Fusarium_seedling_vig) & Fusarium_seedling_vig <= 10,
+                          Fusarium_seedling_vig,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Fusarium_seedling_vig) & Fusarium_seedling_vig >= 10,
+                          Fusarium_seedling_vig / 10,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Fusarium_scr),
+                          Fusarium_scr,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Fusarium_wilt_GH),
+                          Fusarium_wilt_GH,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_eval) & Root_rot_eval == "L",
+                          2,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_eval) & Root_rot_eval == "M",
+                          5,
+                          RR_ahm),
+         RR_ahm = ifelse(!is.na(Root_rot_eval) & Root_rot_eval == "S",
+                          8,
+                          RR_ahm)
+  )
+```
+
+
+## 7. White mold damage score
+
+### 7a. Which variables to coalesce?
+
+202 CDBN entries were sequenced at first glance.  
+
+19 site by year combinations scored white mold.
+
+```{r}
+Phenotypes_cln %>%
+  filter(!is.na(White_mold_scr) | !is.na(White_mold_per) | !is.na(White_mold_eval) | !is.na(White_mold_scr_val2) | !is.na(White_mold_GH) | !is.na(White_mold_stems_per) | !is.na(White_mold_porosity)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 167 that were sequenced. Try it now then.
+
+Phenotypes_cln %>%
+  filter(!is.na(White_mold_eval)) %>%
+  dplyr::select(White_mold_eval, everything()) # L, M, S, what? According to the dataset: L: light, M: moderate, S: severe. Also this is Fusarium root rot... so add those
+
+Phenotypes_cln %>%
+  filter(!is.na(White_mold_per)) %>%
+  ggplot(aes(x = as.factor(Year), y = White_mold_per)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+## White_mold_scr NDER 1997 1999 (1-9) SKOU 1994 (1-5) WAPA 2001 (1-9)
+## White_mold_per NDHA 1994 NEMI 1990 1991 1992 1994 NENP 1990 1999 NES2 1988 NESB 1981 1988 SKOU 1990
+## White_mold_scr_val2 All NA's IGNORE
+## White_mold_stems_per All NA's IGNORE
+## White_mold_GH COF2 2000 (1-9)
+## White_mold_porosity WAPA 2001 (1-5) What does this mean? There is a WAPA WM DS for 2001... use this instead so IGNORE
+## White_mold_eval MISA 1983 6 have plus signs. Blank: 1; + = 3; ++ = 5 on 1-5 scale 
+# also there is WM in NESB in 1985 on a 1-4 scale similar to the below (maybe skip 3)
+# WM NESB 1986 has a WM stems percent... 
+```
+
+Convert everything to a 1-5 scale.
+
+1 - 9 scales were converted to 1-5 scales as `(x + 1) / 2`
+
+% of plot infected scale converted to 1-5 scales as:
+
+    *1 between(White_mold_per, 0, 5)
+    *2 between(White_mold_per, 5.01, 10)
+    *3 between(White_mold_per, 10.01, 15)
+    *4 between(White_mold_per, 15.01, 25)
+    *5 between(White_mold_per, 25.01, 100)
+
+```{r}
+Phenotypes_cln %>%
+  mutate(WM_ahm = ifelse((Location_code == "NDER" & Year %in% c(1997, 1999)) | (Location_code == "COF2" & Year == 2000) | (Location_code == "SKOU" & Year %in% c(1994, 1990)) | (Location_code == "WAPA" & Year %in% c(2001)) | (Location_code == "NDHA" & Year %in% c(1994)) | (Location_code == "NEMI" & Year %in% c(1990, 1991, 1992, 1994)) | (Location_code == "NENP" & Year %in% c(1990, 1999)) | (Location_code == "NES2" & Year %in% c(1988)) | (Location_code == "NESB" & Year %in% c(1981, 1985, 1986, 1988)) | (Location_code == "MISA" & Year %in% c(1983)),
+                         1,
+                         NA),
+         WM_ahm = ifelse(!is.na(White_mold_GH),
+                          (White_mold_GH + 1) / 2,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_scr) & Location_code %in% c("NDER", "WAPA"),
+                          (White_mold_scr + 1) / 2,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_scr) & Location_code %in% c("SKOU"),
+                          White_mold_scr,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 0, 3),
+                          1,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 3, 10),
+                          2,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 10, 20),
+                          3,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 20, 40),
+                          4,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 40, 100),
+                          5,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_eval) & White_mold_eval == "+",
+                          3,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_eval) & White_mold_eval == "++",
+                          5,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1985 & !(CDBN_ID %in% c("N81017", "White_Kidney", "GH760", "4533", "K42", "K407")),
+                          4,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1985 & (CDBN_ID %in% c("GH760", "K42", "K407")),
+                          2,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1985 & (CDBN_ID %in% c("4533")),
+                          5,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1986 & (CDBN_ID %in% c("Fleetwood", "83B17", "UI114", "GH196_2", "81_13197", "D81122", "D84344", "UI59", "CB82_11", "83B342", "Viva", "ISB_459", "UNS_117", "4533", "45030", "79146")),
+                          5,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1986 & (CDBN_ID %in% c("Aurora", "ISB_730", "83B10", "83B13", "83B16", "Othello", "Cinnabar", "83B229", "Harris", "83B364")),
+                          4,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1986 & (CDBN_ID %in% c("83B235")),
+                          3,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1986 & (CDBN_ID %in% c("81_12034", "Kamiakin", "Kardinal", "MRK44", "MRK45")),
+                          2,
+                          WM_ahm)
+  ) %>%
+  filter(!is.na(WM_ahm)) %>%
+  #group_by(Seq_ID) %>%
+  #summarise(count = n())
+  ggplot(aes(x = as.factor(Year), y = WM_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+```
+
+### 7c. Add `WM_ahm` to the dataset
+
+```{r}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(WM_ahm = ifelse((Location_code == "NDER" & Year %in% c(1997, 1999)) | (Location_code == "COF2" & Year == 2000) | (Location_code == "SKOU" & Year %in% c(1994, 1990)) | (Location_code == "WAPA" & Year %in% c(2001)) | (Location_code == "NDHA" & Year %in% c(1994)) | (Location_code == "NEMI" & Year %in% c(1990, 1991, 1992, 1994)) | (Location_code == "NENP" & Year %in% c(1990, 1999)) | (Location_code == "NES2" & Year %in% c(1988)) | (Location_code == "NESB" & Year %in% c(1981, 1985, 1986, 1988)) | (Location_code == "MISA" & Year %in% c(1983)),
+                         1,
+                         NA),
+         WM_ahm = ifelse(!is.na(White_mold_GH),
+                          (White_mold_GH + 1) / 2,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_scr) & Location_code %in% c("NDER", "WAPA"),
+                          (White_mold_scr + 1) / 2,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_scr) & Location_code %in% c("SKOU"),
+                          White_mold_scr,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 0, 3),
+                          1,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 3, 10),
+                          2,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 10, 20),
+                          3,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 20, 40),
+                          4,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_per) & between(White_mold_per, 40, 100),
+                          5,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_eval) & White_mold_eval == "+",
+                          3,
+                          WM_ahm),
+         WM_ahm = ifelse(!is.na(White_mold_eval) & White_mold_eval == "++",
+                          5,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1985 & !(CDBN_ID %in% c("N81017", "White_Kidney", "GH760", "4533", "K42", "K407")),
+                          4,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1985 & (CDBN_ID %in% c("GH760", "K42", "K407")),
+                          2,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1985 & (CDBN_ID %in% c("4533")),
+                          5,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1986 & (CDBN_ID %in% c("Fleetwood", "83B17", "UI114", "GH196_2", "81_13197", "D81122", "D84344", "UI59", "CB82_11", "83B342", "Viva", "ISB_459", "UNS_117", "4533", "45030", "79146")),
+                          5,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1986 & (CDBN_ID %in% c("Aurora", "ISB_730", "83B10", "83B13", "83B16", "Othello", "Cinnabar", "83B229", "Harris", "83B364")),
+                          4,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1986 & (CDBN_ID %in% c("83B235")),
+                          3,
+                          WM_ahm),
+         WM_ahm = ifelse(Location_code == "NESB" & Year == 1986 & (CDBN_ID %in% c("81_12034", "Kamiakin", "Kardinal", "MRK44", "MRK45")),
+                          2,
+                          WM_ahm)
+  )
+```
+
+
+## 8. Zinc deficiency damage score
+
+108 CDBN entries were sequenced. 
+
+4 site*year combinations scored this trait.
+
+```{r}
+Phenotypes_cln %>%
+  filter(!is.na(Zinc_dwarfing) | !is.na(Zinc_yellowing) | !is.na(Zinc_defic_eval) | !is.na(Zinc_defic_scr) | !is.na(Zinc_reaction_eval)) %>% 
+  group_by(Seq_ID) %>%
+  summarise(count = n()) # 91 that were sequenced. 
+
+Phenotypes_cln %>%
+  filter(!is.na(Zinc_reaction_eval)) %>%
+  dplyr::select(Zinc_reaction_eval, everything()) # L, M, S, what? According to the dataset: L: light, M: moderate, S: severe. Also this is Fusarium root rot... so add those
+
+Phenotypes_cln %>%
+  filter(!is.na(Zinc_dwarfing)) %>%
+  ggplot(aes(x = as.factor(Year), y = Zinc_dwarfing)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+## Zinc_dwarfing IDKI 1999 (1-9)
+## Zinc_yellowing IDKI 1999 (1-9)
+# Zinc_defic_scr IDPA 2001 (1-9)
+# Zinc_defic_eval IDKI 2003 R I S guessing I is intermediate. 1= R _ 5 = I _ 9 = S
+# Zinc_reaction_eval NDFA 1985 R NS S MR M MS resistant to susceptible scale : 1 = R 3 = MR 5 = M 7 = MS 9 = S
+# don't autofill this eval because it looks like only pintos were scored for this at NDFA in 1985.
+
+```
+
+```{r}
+Phenotypes_cln %>%
+  mutate(ZN_ahm = ifelse((Location_code == "IDKI" & Year %in% c(2003, 1999)) | (Location_code == "IDPA" & Year == 2001) | (Location_code == "NDFA" & Year %in% c(1985)),
+                         1,
+                         NA),
+         ZN_ahm = ifelse(!is.na(Zinc_yellowing),
+                          Zinc_yellowing,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_defic_scr),
+                          Zinc_defic_scr,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_defic_eval) & Zinc_defic_eval == "R",
+                          1,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_defic_eval) & Zinc_defic_eval == "I",
+                          5,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_defic_eval) & Zinc_defic_eval == "S",
+                          9,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "R",
+                          1,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "MR",
+                          3,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "M",
+                          5,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "MS",
+                          7,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "S",
+                          9,
+                          ZN_ahm),
+  ) %>%
+  filter(!is.na(ZN_ahm)) %>%
+  #group_by(Seq_ID) %>%
+  #summarise(count = n())
+  ggplot(aes(x = as.factor(Year), y = ZN_ahm)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Year)), alpha = 0.1, height = 0) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  facet_wrap(~Location_code)
+
+```
+
+```{r}
+Phenotypes_cln <- Phenotypes_cln %>%
+  mutate(ZN_ahm = ifelse((Location_code == "IDKI" & Year %in% c(2003, 1999)) | (Location_code == "IDPA" & Year == 2001) | (Location_code == "NDFA" & Year %in% c(1985)),
+                         1,
+                         NA),
+         ZN_ahm = ifelse(!is.na(Zinc_yellowing),
+                          Zinc_yellowing,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_defic_scr),
+                          Zinc_defic_scr,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_defic_eval) & Zinc_defic_eval == "R",
+                          1,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_defic_eval) & Zinc_defic_eval == "I",
+                          5,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_defic_eval) & Zinc_defic_eval == "S",
+                          9,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "R",
+                          1,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "MR",
+                          3,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "M",
+                          5,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "MS",
+                          7,
+                          ZN_ahm),
+         ZN_ahm = ifelse(!is.na(Zinc_reaction_eval) & Zinc_reaction_eval == "S",
+                          9,
+                          ZN_ahm),
+  )
+```
+
+# --- Save the cleaned data -----------------
+
+# Save the new data to an Excel file.
+
+Assign `Germplasm_ahm` to `lst$Germplasm`, `Phenotypes_cln` to `lst$Phenotypes`, `Locations_ahm` to `lst$Locations_by_Years`, `Locations_unique` to `lst$Locations_ahm`. 
+
+Save three new xlsx files (all V2.0).
+	- One file has all the germplasm and location-year metadata except for the weather, and is called `CDBN-metadata_V2.0.xlsx`. 
+	- One file has all the phenotype data, which can be related back to the metadata using the `Location_code`, `Year`, `CDBN_ID` and/or `Seq_ID` keys, and is called `CDBN-phenotypes_V2.0.xlsx`. 
+
+*NB: I commented out this code for the knitted version because it only needed to run once to generate the new Excel file.*
+
+```{r assign altered tables and create V2.0}
+#  createSheet(wb, name = "Kinship")
+#  createSheet(wb, name = "Germplasm_ahm")
+#  createSheet(wb, name = "Locations_by_Years")
+#  createSheet(wb, name = "Locations_ahm")
+#  writeWorksheet(wb, Germplasm_ahm, sheet = "Germplasm_ahm")
+#  writeWorksheet(wb, Locations_ahm, sheet = "Locations_by_Years")
+#  writeWorksheet(wb, Locations_unique, sheet = "Locations_ahm")
+#  writeWorksheet(wb, kinship, sheet = "Kinship")
+#  saveWorkbook(wb)
+
+# wb1 <- loadWorkbook("CDBN-metadata_V2.0.xlsx", create = TRUE)
+# createSheet(wb1, name = "Kinship")
+# createSheet(wb1, name = "Germplasm_ahm")
+# createSheet(wb1, name = "Locations_by_Years")
+# createSheet(wb1, name = "Locations_ahm")
+# writeWorksheet(wb1, Germplasm_ahm, sheet = "Germplasm_ahm")
+# writeWorksheet(wb1, Locations_ahm, sheet = "Locations_by_Years")
+# writeWorksheet(wb1, Locations_unique, sheet = "Locations_ahm")
+# writeWorksheet(wb1, kinship, sheet = "Kinship")
+# saveWorkbook(wb1)
+ 
+# wb2 <- loadWorkbook("CDBN-phenotypes_V2.0.xlsx", create = TRUE)
+# createSheet(wb2, name = "Phenotypes_cln")
+# writeWorksheet(wb2, Phenotypes_cln, sheet = "Phenotypes_cln")
+# saveWorkbook(wb2)
+ 
+# ?saveWorkbook
+ 
+# wb3 <- loadWorkbook("CDBN-weather_V1.7.1.xlsx", create = TRUE)
+# createSheet(wb3, name = "Daily_weather")
+# writeWorksheet(wb3, all_wea, sheet = "Daily_weather")
+# saveWorkbook(wb3)
+
+saveRDS(Phenotypes_cln, file.path("ignore", "CDBN_Phenotypes_V2.0.rds"))
+```
+ 
+For the purposes of the first CDBN paper, we include only the BLUPs generated from the cleaned phenotypic data created here, as well as all code used to generate the BLUPs. This is because we would like to use this phenotypic data for further analyses with location-specific data.
+
+If readers are interested in using this phenotypic data, please contact Alice MacQueen (alice DOT macqueen AT utexas DOT edu) about possible collaborations!
+ 
+ 

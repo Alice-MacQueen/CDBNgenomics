@@ -3,7 +3,7 @@
 .RData
 .Ruserdata
 inst/doc
-data-raw/
+data-raw/ignore/
 R-raw/
 vignettes/
 analysis-raw/
