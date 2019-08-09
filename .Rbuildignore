@@ -2,3 +2,5 @@
 ^\.Rproj\.user$
 ^data-raw/ignore/$
 ^vignettes/$
+^README\.Rmd$
+^\.travis\.yml$
