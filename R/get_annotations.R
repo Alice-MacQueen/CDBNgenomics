@@ -41,19 +41,10 @@ gapit2anno <- function(df){
                   MAF = .data$maf,
                   `Number of Observations` = .data$nobs,
                   ) %>%
-    mutate(CHR = case_when(
-      .data$Chromosome == 1 ~ "Chr01",
-      .data$Chromosome == 2 ~ "Chr02",
-      .data$Chromosome == 3 ~ "Chr03",
-      .data$Chromosome == 4 ~ "Chr04",
-      .data$Chromosome == 5 ~ "Chr05",
-      .data$Chromosome == 6 ~ "Chr06",
-      .data$Chromosome == 7 ~ "Chr07",
-      .data$Chromosome == 8 ~ "Chr08",
-      .data$Chromosome == 9 ~ "Chr09",
-      .data$Chromosome == 10 ~ "Chr10",
-      .data$Chromosome == 11 ~ "Chr11"
-    ))
+    mutate(CHR = ifelse(.data$Chromosome <= 9,
+                        paste0("Chr0", .data$Chromosome),
+                        paste0("Chr", .data$Chromosome
+                        )))
 }
 
 #' @importFrom ashr get_lfsr
@@ -282,19 +273,10 @@ get_annotations <- function(df, type = c("bigsnp", "gapit", "mash", "rqtl2",
   }
   if(type == "table"){
     topsnp_inputlist[[1]] <- df %>%
-      mutate(CHR = case_when(
-        CHR == 1 ~ "Chr01",
-        CHR == 2 ~ "Chr02",
-        CHR == 3 ~ "Chr03",
-        CHR == 4 ~ "Chr04",
-        CHR == 5 ~ "Chr05",
-        CHR == 6 ~ "Chr06",
-        CHR == 7 ~ "Chr07",
-        CHR == 8 ~ "Chr08",
-        CHR == 9 ~ "Chr09",
-        CHR == 10 ~ "Chr10",
-        CHR == 11 ~ "Chr11",
-      ),
+      mutate(CHR = ifelse(.data$CHR <= 9,
+                    paste0("Chr0", .data$CHR),
+                    paste0("Chr", .data$CHR
+                           )),
              start = as.integer(.data$start),
              end = as.integer(.data$end),
              POS = as.integer(.data$end))
@@ -317,7 +299,11 @@ get_annotations <- function(df, type = c("bigsnp", "gapit", "mash", "rqtl2",
           input <- loop_input %>%
             mutate(start = .data$POS - (range/2),
                    end = .data$POS + (range/2))
-        } else {
+        } else if(type == "table"){
+          input <- loop_input %>%
+            mutate(start = .data$start - (range/2),
+                   end = .data$end + (range/2))
+        } else{
           input <- loop_input # Other types have start and end already
         }
 
