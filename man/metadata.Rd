@@ -16,16 +16,16 @@ A dataset containing the metadata associated with 327 entries from the
 }
 \details{
 \itemize{
-  \item Genotype Name associated with the CDBN entry
-  \item SY Seed yield average associated with the CDBN entry
+  \item Genotype. Name associated with the CDBN entry
+  \item SY. Seed yield average associated with the CDBN entry
   \item Taxa. Taxa ID of the Phaseolus vulgaris CDBN panel.
-  \item Seq_ID The ID of the sequenced line in the CDBN panel.
-  \item GHmode Mode of the growth habit scored in the CDBN.
-  \item Gene_pool Whether the CDBN entry came from the Mesoamerican or Andean gene pool.
-  \item Race The race of the CDBN entry: Durango, Jalisco, Mesoamerican, or Nueva Granada.
-  \item Market_class_ahm Market class of the CDBN entry
-  \item Det_scr Whether or not the CDBN entry was determinate
-  \item Earliest_Year_CDBN The earliest year the entry was grown in the CDBN.
+  \item Seq_ID. The ID of the sequenced line in the CDBN panel.
+  \item GHmode. Mode of the growth habit scored in the CDBN.
+  \item Gene_pool. Whether the CDBN entry came from the Mesoamerican or Andean gene pool.
+  \item Race. The race of the CDBN entry: Durango, Jalisco, Mesoamerican, or Nueva Granada.
+  \item Market_class_ahm. Market class of the CDBN entry
+  \item Det_scr. Whether or not the CDBN entry was determinate
+  \item Earliest_Year_CDBN. The earliest year the entry was grown in the CDBN.
 }
 }
 \references{
