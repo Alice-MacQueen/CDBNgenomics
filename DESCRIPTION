@@ -19,9 +19,11 @@ Imports:
     GGally,
     ggplot2,
     magrittr,
+    multtest,
     purrr,
     readr,
     rlang,
+    rlist,
     stats,
     stringr,
     tibble,
@@ -29,7 +31,9 @@ Imports:
     viridis
 Suggests: 
     dots,
+    GenomicFeatures,
     knitr,
     mashr,
-    rmarkdown
+    rmarkdown,
+    VariantAnnotation
 VignetteBuilder: knitr

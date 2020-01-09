@@ -4,3 +4,7 @@
 ^vignettes/$
 ^README\.Rmd$
 ^\.travis\.yml$
+^data-raw$
+^analysis-paper/$
+^analysis-raw/$
+^R-raw/$
