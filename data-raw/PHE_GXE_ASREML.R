@@ -66,8 +66,8 @@ for(i in seq_along(PHEGXE)){
                     residual = ~idv(units), data = testdf, workspace = "6gb")
 
   print(PHEGXE[[i]])
-  asr_out$loglik
-  summary(asr_out)$varcomp
+  print(asr_out$loglik)
+  print(summary(asr_out)$varcomp)
   saveRDS(asr_out, file = file.path("data-raw", "ignore",
                                     paste0(PHEGXE[[i]], "_Reviewer_Model_ASReml",
                                            str_replace_all(Sys.time(), ":",

@@ -8,11 +8,17 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-library(asreml)
+# library(asreml)
 
 ```
 
 ## 
+
+```{r}
+library(tidyverse)
+library(asreml)
+```
+
 
 Take the raw data and use ASReml (a subscription program) to find BLUPs.
 
@@ -162,6 +168,29 @@ As discussed, the GxE matrices for each phenotype were extremely sparse – the 
 How many SY values are aliased?
 
 ```{r}
+SYasr <- readRDS("../data-raw/ASReml/SY_Reviewer_Model_ASReml.rds")
+SYold <- readRDS("../data-raw/ignore/SY_BLUPs_kinship.rds")
+```
 
+```{r}
+SYasr$loglik
+summary(SYasr)$varcomp
+
+phebyloc <- readRDS(file = file.path("..", "data-raw", "ignore",                                     paste0("Phenotype_by_location_dataframes_",                                            "for-mashr-GWAS_312-and-327.rds")))
+Seq_small327 <- phebyloc[[11]] %>%
+  mutate(Taxa = paste0("Taxa_", Taxa))
+
+SYoldg <- enframe(SYold$g, name = "Taxa") %>%
+  mutate(Taxa = paste0("Taxa_", Taxa))
+
+as.data.frame(SYasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  full_join(SYoldg) %>%
+  right_join(Seq_small327) %>%
+  filter(!is.na(Earliest_Year_CDBN) & bu > -10000) %>%
+  ggplot(aes(x = bu, y = value)) +
+  geom_point()
+
+sum(!is.na(Seq_small327$Earliest_Year_CDBN))
 ```
 
