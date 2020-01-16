@@ -71,6 +71,8 @@ make_U_ed <- function(path, data_strong, numSNPs, saveoutput = FALSE){
 #'     input, you should not use this function - instead, follow the
 #'     recommendations of the vignettes in the mashr package itself.
 #'
+#' @importFrom ashr get_fitted_g
+#'
 #' @export
 mash_standard_run <- function(path, list_input = NA, numSNPs = NA,
                               saveoutput = FALSE, U_ed = NA){
@@ -122,7 +124,7 @@ mash_standard_run <- function(path, list_input = NA, numSNPs = NA,
   message(paste0("Compute posterior matrices for the strong effects",
                  " using the mash fit from the
                  random tests."))
-  m2 = mashr::mash(data_strong, g = mashr::get_fitted_g(m), fixg = TRUE)
+  m2 = mashr::mash(data_strong, g = get_fitted_g(m), fixg = TRUE)
   if(saveoutput == TRUE){
     saveRDS(m2, file.path(path, paste0("Strong_Effects", numSNPs, "SNPs.rds")))
   }
