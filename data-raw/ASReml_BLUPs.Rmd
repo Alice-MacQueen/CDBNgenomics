@@ -1,0 +1,196 @@
+---
+title: "ASReml BLUP walkthrough"
+author: "Alice MacQueen"
+date: "1/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+# library(asreml)
+
+```
+
+## 
+
+```{r}
+library(tidyverse)
+library(asreml)
+```
+
+
+Take the raw data and use ASReml (a subscription program) to find BLUPs.
+
+The model includes CDBN germplasm entry (as `Taxa`) as a fixed effect. It includes location and year as random effects, as reviewer three requested. It includes a compressed kinship matrix calculated with Tassel to model variance between the genotypes, as a random effect. It also includes two GxE terms: GxE decomposed into Genotype by Location (`Taxa:Location_code`) and Genotype by Year (`Taxa:Year`).
+
+We did not include a Genotype by Location by Year term, because when we tried to include this term, Didn't work well - Taxa:Location_code:Year (and Taxa:LbY) hit the boundary condition and had ~0 variance component estimation.
+
+Add statement about data sparseness here.
+
+## Setup
+
+```{r}
+
+METG <- readRDS(file.path("data-raw", "ignore", "CDBN_Phenotypes_V2.1.rds"))
+METG <- METG %>%
+  dplyr::select(Genotype:Longitude, SY, SW, DM, DF, SF, LG, HI, PH, BM, GH,
+                SA, CB, RU, EV, WM, VN, CT, HB, BR, CM, RR, ZN) %>%
+  mutate(VN = ifelse(VN == "a",
+                     0,
+                     VN),
+         VN = ifelse(VN == "b",
+                     1,
+                     VN),
+         VN = ifelse(VN >= 1,
+                     1,
+                     VN),
+         VN = as.numeric(VN),
+         RR = ifelse(RR > 9,
+                     9,
+                     RR)
+  )
+
+phebyloc <- readRDS(file = file.path("data-raw", "ignore",
+                                     paste0("Phenotype_by_location_dataframes_",
+                                            "for-mashr-GWAS_312-and-327.rds")))
+Seq_small327 <- phebyloc[[11]]
+
+METG_Seq327 <- METG %>%
+  dplyr::select(-Seq_ID, -Gene_pool, -Market_class_ahm, -Race) %>%
+  left_join(Seq_small327) %>%
+  dplyr::select(CDBN_ID, Seq_ID, Gene_pool, Race, Market_class_ahm, Det_scr,
+                GHmode, everything())
+
+V_g <- read.table(file.path("data-raw", "ignore",
+                            paste0("Filter_120Ct_MAF1per_CDBN_37yr_pedigree",
+                              "_imputed_names_kinship.txt")),
+             skip = 3, sep = "\t", row.names = 1)
+colnames(V_g) <- rownames(V_g)
+Vg <- as.matrix(V_g)
+# Seq_Vg <- which(!(colnames(Vg) %in% levels(METG_Seq327$Taxa)))
+# Vg327 <- Vg[Seq_Vg, Seq_Vg]
+Vg2 <- Vg[-347,-347] # remove an entry in the matrix which gives a negative eigenvalue
+# VgEig <- eigen(Vg327) # look at eigenvalues of this matrix - which are negative?
+# which(VgEig$values < 0 )
+
+
+PHE <- list(quote(BM), quote(BR), quote(CB), quote(CM), quote(CT), quote(DF),
+            quote(DM), quote(EV), quote(GH), quote(HB), quote(HI), quote(LG),
+            quote(PH), quote(RR), quote(RU), quote(SA), quote(SF), quote(SW),
+            quote(SY), quote(WM), quote(ZN))
+PHEGXE <- list(quote(BM), quote(DF), quote(DM), quote(HI), quote(LG),
+               quote(PH),quote(SF), quote(SW), quote(SY))
+
+
+METG_Seq327 <- METG_Seq327 %>%
+  mutate(Taxa = as_factor(Taxa),
+         Location_code = as_factor(Location_code),
+         Year = as_factor(Year))
+```
+
+
+## Run ASREML for each phenotype to generate BLUPs
+
+This won't work unless each model has positive variance components for all of these random effects. This is the starting point for reduced models. 
+
+```{r}
+
+for(i in seq_along(PHEGXE)){
+  testdf <- METG_Seq327 %>%
+    filter(!is.na(eval(PHE[[i]])) & !is.na(Seq_ID)) %>%
+    mutate(LbY = paste(Location_code, Year, sep = "_"),
+           LbY = as_factor(LbY))
+  
+  asr_out <- asreml(eval(PHE[[i]]) ~ Taxa, random = ~vm(Taxa, Vg2) +
+                               ~idv(Location_code) +
+                               ~idv(Location_code):idv(Year) +
+                               ~idv(Taxa):idv(Location_code) +
+                               ~idv(Taxa):idv(Year),
+                             residual = ~idv(units), data = testdf, workspace = "3gb")
+
+ 
+  
+  asr_out$loglik
+  summary(asr_out)$varcomp
+  asr_out_pv <- predict(asr_out, classify = "Taxa")
+  saveRDS(asr_out, paste0(PHE[[i]], "_Reviewer_Model_ASReml.rds"))
+  saveRDS(asr_out_pv, paste0(PHE[[i]], "_Reviewer_Model_Predictions.rds"))
+}
+
+  asr_out2 <- asreml(eval(PHE[[i]]) ~ Taxa, random = ~vm(Taxa, Vg2) +
+                               ~idv(Location_code) +
+                               ~idv(Location_code):idv(Year) +
+                               ~idv(Taxa):idv(Location_code) +
+                               ~idv(Taxa):idv(Year),
+                             residual = ~idv(units), data = testdf2, workspace = "3gb") 
+```
+
+##  ZN
+
+```{r}
+testdf <- METG_Seq327 %>%
+  filter(!is.na(eval(PHE[[i]])) & !is.na(Seq_ID)) %>%
+  mutate(LbY = paste(Location_code, Year, sep = "_"),
+         LbY = as_factor(LbY))
+
+asr_out <- asreml(eval(PHE[[i]]) ~ Taxa, random = ~vm(Taxa, Vg2) +
+                             ~idv(Location_code) +
+                             ~idv(Location_code):idv(Year) +
+                             ~idv(Taxa):idv(Location_code) +
+                             ~idv(Taxa):idv(Year),
+                           residual = ~idv(units), data = testdf, workspace = "3gb")
+
+asr_out$loglik
+summary(asr_out)$varcomp
+asr_out_pv <- predict(asr_out, classify = "Taxa")
+saveRDS(asr_out, paste0(PHE[[i]], "_Reviewer_Model_ASReml.rds"))
+saveRDS(asr_out_pv, paste0(PHE[[i]], "_Reviewer_Model_Predictions.rds"))
+
+asr_out2 <- asreml(eval(PHE[[i]]) ~ Taxa, random = ~vm(Taxa, Vg2),
+                           residual = ~idv(units), data = testdf, workspace = "3gb")  
+summary(asr_out2)$varcomp
+length(which(asr_out2$coefficients$fixed != 0 ))
+
+
+asr_out2_pv <- predict(asr_out2, classify = "Taxa")
+saveRDS(asr_out2, paste0(PHE[[i]], "_Reduced_Reviewer_Model_ASReml.rds"))
+saveRDS(asr_out2_pv, paste0(PHE[[i]], "_Reduced_Reviewer_Model_Predictions.rds")) 
+
+```
+
+Too many genotypes have their predictions aliased because there are not enough datapoints to account for location or GxE effects for ZN.
+
+As discussed, the GxE matrices for each phenotype were extremely sparse – the genetic correlation matrices constructed from GxLxY data never have more than 15% of cells with correlations. Since most genotypes were only grown in sequential years, for 1-4 years, the GxY matrix was even sparser – no genetic correlation matrix for any phenotype from GxY data had more than 6% of cells with correlations. Given that factor analysis requires matrices without missing values, we judged that these matrices did not have enough complete cases for factor analysis. We are unaware of methods to model such sparse matrices. However, 9 phenotypes had between 40% and 99% of genetic correlations constructed from GxL data: seed yield, seed weight, days to maturity, days to flowering, seedfill duration, biomass, plant height, harvest index, and lodging. For these nine phenotypes, we used factor analysis to produce covariates for the GxL matrix that we then included in our calculation of BLUPs for the genotypic main effects. The script is available at _link_to_R_script_:ASReml_BLUPs.Rmd.
+
+# SY, SW, DM, DF, SF, DM, PH, HI, LG
+
+How many SY values are aliased?
+
+```{r}
+SYasr <- readRDS("../data-raw/ASReml/SY_Reviewer_Model_ASReml.rds")
+SYold <- readRDS("../data-raw/ignore/SY_BLUPs_kinship.rds")
+```
+
+```{r}
+SYasr$loglik
+summary(SYasr)$varcomp
+
+phebyloc <- readRDS(file = file.path("..", "data-raw", "ignore",                                     paste0("Phenotype_by_location_dataframes_",                                            "for-mashr-GWAS_312-and-327.rds")))
+Seq_small327 <- phebyloc[[11]] %>%
+  mutate(Taxa = paste0("Taxa_", Taxa))
+
+SYoldg <- enframe(SYold$g, name = "Taxa") %>%
+  mutate(Taxa = paste0("Taxa_", Taxa))
+
+as.data.frame(SYasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  full_join(SYoldg) %>%
+  right_join(Seq_small327) %>%
+  filter(!is.na(Earliest_Year_CDBN) & bu > -10000) %>%
+  ggplot(aes(x = bu, y = value)) +
+  geom_point()
+
+sum(!is.na(Seq_small327$Earliest_Year_CDBN))
+```
+
