@@ -74,31 +74,31 @@ saveRDS(allphe_FDR10per_within100kbp,
                       "_", Sys.Date(), ".rds"))
 
 
-## ----------- For PC10, Make plots with TopSNP Effects ---------------
-for(i in seq_along(PC10)){
+## ----------- Make plots with TopSNP Effects ---------------
+for(i in seq_along(PC0)){
   GWAS_obj <- load_GAPIT_GWAS_stats(path = gapitpath,
-                                    phenotype = PC10[i])
+                                    phenotype = PC0[i])
 
   panel_a <- gapit_plot_ggman_labeled(GWAS_obj = GWAS_obj)
   panel_b <- gapit_plot_qq(GWAS_obj = GWAS_obj)
-  panel_c <- gapit_plot_resid_density(plotpheno = phenos_PC10[i],
+  panel_c <- gapit_plot_resid_density(plotpheno = phenos_PC0[i],
                                       GWAS_obj = GWAS_obj)
   row1 <- plot_grid(panel_a, panel_b, panel_c, align = "hv", nrow = 1,
                     rel_widths = c(1/2, 1/4, 1/4), labels = "AUTO")
-  ggsave(paste0("PC10_kinpheoBLUP", PC10[i], "Manhattan.png"), width = 9,
+  ggsave(paste0("ASReml_", PC0[i], "_Manhattan.png"), width = 9,
          height = 2.75*.9, units = "in", dpi = 400)
 
-  panels_row2to3 <- gapit_plot_topsnp_effects(plotpheno = phenos_PC10[i],
+  panels_row2to3 <- gapit_plot_topsnp_effects(plotpheno = phenos_PC0[i],
                                               GWAS_obj = GWAS_obj)
   row2to3 <- plot_grid(panels_row2to3[[1]], panels_row2to3[[2]],
                        panels_row2to3[[3]], panels_row2to3[[4]], nrow = 2,
                        axis = "lb", rel_widths = c(2/3, 1/3),
                        labels = c("D", "E", "F", "G", "H", "I"))
-  ggsave(row2to3, file = paste0("PC10_kinpheoBLUP", PC10[i],
-                                "TopSNPEffects.png"),
+  ggsave(row2to3, file = paste0("ASReml_", PC0[i],
+                                "_TopSNPEffects.png"),
          width = 9, height = 2.75*2*.9, units = "in", dpi = 400)
 
-  plot_grid(row1, row2to3, axis = "lr", nrow = 2, rel_heights = c(1/3, 2/3))
-  ggsave(paste0("PC10_kinpheoBLUP", PC10[i], "Manhattan_and_TopSNPEffects.png"),
-         width = 10*.9, height = 2.75*3*.9, units = "in", dpi = 400)
+  #plot_grid(row1, row2to3, axis = "lr", nrow = 2, rel_heights = c(1/3, 2/3))
+  #ggsave(paste0("ASReml_", PC0[i], "_Manhattan_and_TopSNPEffects.png"),
+  #       width = 10*.9, height = 2.75*3*.9, units = "in", dpi = 400)
 }

@@ -1,0 +1,158 @@
+---
+title: "ASReml_Figure_Revisions"
+author: "Alice MacQueen"
+date: "1/17/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(data.table)
+library(RColorBrewer)
+library(viridis)
+library(cowplot)
+library(GGally)
+library(CDBNgenomics)
+source("../data-raw/ignore/scorelocalfunctions.R")
+source("~/Github/Functions_ggplot-theme-adjustments_2018-01-03.R")
+```
+
+## 
+
+## Figure S1
+
+Correlation plot of BLUPs from ASReml
+
+```{r}
+blups <- read.table("../data-raw/ASReml/ASReml_coefficients_13_GAPIT_2020-01-12.txt", header = TRUE, sep = "\t")
+
+blup_cor <- blups[2:20] %>%
+  cor(use = "pairwise.complete") # correlation matrix between phenotype breeding values
+
+phe_key <- tibble(Phenotype_abbr = row.names(blup_cor), Phenotype = c("Seed yield (kg/ha)", "Seed weight (mg)",
+                         "Halo blight damage score", "Rust damage score",
+                        "Seed appearance score", "White mold damage score", 
+                        "Blackroot BCMV response",
+                        "CBB damage score", "BCMV damage score", 
+                        "CTV damage score", "Early vigor", 
+                        "Growth habit", "Plant height", 
+                        "Biomass (kg)", "Days to flowering", 
+                        "Days to maturity", "Harvest index (%)", 
+                        "Lodging score", "Seedfill duration (days)"))
+```
+
+```{r}
+min(blup_cor) # minimum correlation between pairs
+
+(length(which(abs(blup_cor)>0.2))-19) / (length(blup_cor)-19) # fraction of correlations > 0.2
+
+blup_cor %>%
+  CDBNgenomics:::reorder_cormat(.) %>%
+  ggcorr(data = NULL, cor_matrix = ., geom = "circle", layout.exp = 5, min_size = 0.2, max_size = 2.5) + 
+  scale_color_viridis(option = "B")
+
+save_plot("Supplement_Fig_1_ASReml.svg", plot = last_plot(), base_width = 4)
+```
+
+
+## Local score supplement
+
+```{r}
+FDRannos <- readRDS("~/Github/CDBNgenomics/data-raw/ignore/10perFDR_annosWithin100kbp_GAPIT_BLUP_PC0_phenotypedonly_2020-01-17.rds")
+```
+
+
+```{r}
+all_data <- readRDS("~/Github/CDBNgenomics/data-raw/ignore/local_scores_22_CDBN_phenotypes_ksi3_list.rds")
+```
+
+```{r}
+pathpt1 <- file.path("I:", "OneDrive", "NSF Common Bean", "CDBN Genomics", "Pvulgaris-genome", 
+                        "annotation", "Pvulgaris") 
+
+  txdb <- AnnotationDbi::loadDb(file = file.path(pathpt1, "v2.1", "annotation", 
+                                  "Pvulgaris_442_v2.1.gene.sqlite"))
+  anno_info <- read.table(file = file.path(pathpt1, "v2.1", "annotation", 
+                                 "Pvulgaris_442_v2.1.annotation_info.txt"), 
+                          sep = "\t", fill = TRUE, header = TRUE)
+  Pv_kegg <- read.table(file = file.path(pathpt1, "v2.1", "annotation", 
+                                         "commonbean_kegg.txt"), 
+                        sep = "\t", header = FALSE)
+  Pv_GO <- read.table(file = file.path(pathpt1, "v2.1", "annotation", 
+                                       "commonbean_go.txt"),
+                      sep = "\t", header = FALSE)
+
+```
+
+
+SY
+```{r}
+all_data[[20]] %>%
+  filter(Chromosome == 1 & between(Position, 42180000,	42380000)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.719524, linetype = 2)
+all_data[[20]] %>%
+  filter(Chromosome == 1 & between(Position,42205769,	42238454)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.719524, linetype = 2)
+
+```
+
+SW
+```{r}
+FDRannos$SW %>%
+  left_join(all_data[[19]], by = c("Marker Name" = "SNP"))
+FDRannos$SW %>%
+  arrange((`p value`))
+sigzones$SW
+```
+S05_27269508 5	27269508	27269508	4.828511
+S02_30559854 2	30559854	30559854	4.467288
+S08_62833499 8	62833423	62833499	5.899035	
+S03_4406253 3	4406253	4406260	4.971953
+
+3	5259067	5261518	53.945135	
+```{r}
+all_data[[19]] %>%
+  filter(Chromosome == 3 & between(Position,4366253,	5301518)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.671113, linetype = 2)
+
+FDRannos$SW %>% mutate(Posbin = ceiling(Position/1000000)) %>%
+  #group_by(Chromosome, Posbin) %>% summarise(count = n())
+  ggplot(aes(x = Posbin, y = -log10(`p value`))) +
+  geom_point() + facet_wrap(~Chromosome)
+```
+
+## LG
+```{r}
+FDRannos$LG %>%
+  left_join(all_data[[19]], by = c("Marker Name" = "SNP"))
+FDRannos$LG %>%
+  group_by(Chromosome) %>%
+  summarise(max = max(`p value`), effect = mean(abs(`SNP Effect`)))
+
+0.04077616+0.05782306+0.01812062
+FDRannos$LG %>%
+  arrange((`p value`))
+sigzones$LG
+```
+0.04077616+0.05782306+0.01812062
+S04_2932290   4	2990488	2992352	4.393083	  2869697   3154155
+S07_34512482 S07_34455942 S07_34459776     7	34459716	34488947	23.988031	
+S08_18222478         8	16680874	16680881	5.669153
+
+```{r}
+all_data[[13]] %>%
+  filter(Chromosome == 4 & between(Position, 2839697,	3184155)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.672843, linetype = 2)
+
+all_data[[13]] %>%
+  filter(Chromosome == 7 & between(Position, 34429716,	34558947)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.672843, linetype = 2)
+
+```
+
