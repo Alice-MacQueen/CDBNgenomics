@@ -9,7 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 # library(asreml)
-
+phebyloc <- readRDS(file = file.path("..", "data-raw", "ignore",                                     paste0("Phenotype_by_location_dataframes_",                                            "for-mashr-GWAS_312-and-327.rds")))
+Seq_small327 <- phebyloc[[11]]
 ```
 
 ## 
@@ -129,6 +130,11 @@ for(i in seq_along(PHEGXE)){
 ##  ZN
 
 ```{r}
+PHE <- list(quote(HB), quote(RR), quote(RU), quote(SA), quote(WM), quote(ZN),  quote(GH), quote(BR), quote(CB), quote(CM), quote(CT),quote(EV),
+            quote(BM),  quote(DF), quote(DM), quote(HI), quote(LG),
+            quote(PH),  quote(SF), quote(SW), quote(SY))
+
+for(i in seq_along(PHE)){
 testdf <- METG_Seq327 %>%
   filter(!is.na(eval(PHE[[i]])) & !is.na(Seq_ID)) %>%
   mutate(LbY = paste(Location_code, Year, sep = "_"),
@@ -139,24 +145,23 @@ asr_out <- asreml(eval(PHE[[i]]) ~ Taxa, random = ~vm(Taxa, Vg2) +
                              ~idv(Location_code):idv(Year) +
                              ~idv(Taxa):idv(Location_code) +
                              ~idv(Taxa):idv(Year),
-                           residual = ~idv(units), data = testdf, workspace = "3gb")
-
-asr_out$loglik
-summary(asr_out)$varcomp
-asr_out_pv <- predict(asr_out, classify = "Taxa")
-saveRDS(asr_out, paste0(PHE[[i]], "_Reviewer_Model_ASReml.rds"))
-saveRDS(asr_out_pv, paste0(PHE[[i]], "_Reviewer_Model_Predictions.rds"))
-
-asr_out2 <- asreml(eval(PHE[[i]]) ~ Taxa, random = ~vm(Taxa, Vg2),
-                           residual = ~idv(units), data = testdf, workspace = "3gb")  
-summary(asr_out2)$varcomp
-length(which(asr_out2$coefficients$fixed != 0 ))
+                           residual = ~idv(units), data = testdf, workspace = "9gb")
 
 
-asr_out2_pv <- predict(asr_out2, classify = "Taxa")
-saveRDS(asr_out2, paste0(PHE[[i]], "_Reduced_Reviewer_Model_ASReml.rds"))
-saveRDS(asr_out2_pv, paste0(PHE[[i]], "_Reduced_Reviewer_Model_Predictions.rds")) 
-
+  print(PHE[[i]])
+  print(asr_out$loglik)
+  print(summary(asr_out)$varcomp)
+  saveRDS(asr_out, file = file.path("data-raw", "ignore",
+                                    paste0(PHE[[i]], "_Reviewer_Model_ASReml",
+                                           str_replace_all(Sys.time(), ":",
+                                                           "."), ".rds")))
+  asr_out_pv <- predict(asr_out, classify = "Taxa")
+  saveRDS(asr_out_pv, file = file.path("data-raw", "ignore",
+                                       paste0(PHE[[i]],
+                                              "_Reviewer_Model_Predictions",
+                                              str_replace_all(Sys.time(), ":",
+                                                              "."), ".rds")))
+}
 ```
 
 Too many genotypes have their predictions aliased because there are not enough datapoints to account for location or GxE effects for ZN.
@@ -168,29 +173,363 @@ As discussed, the GxE matrices for each phenotype were extremely sparse – the 
 How many SY values are aliased?
 
 ```{r}
-SYasr <- readRDS("../data-raw/ASReml/SY_Reviewer_Model_ASReml.rds")
-SYold <- readRDS("../data-raw/ignore/SY_BLUPs_kinship.rds")
+SYasr <- readRDS("../data-raw/ASReml/DM_Reviewer_Model_ASReml.rds")
+SYold <- readRDS("../data-raw/ignore/DM_BLUPs_kinship.rds")
+SYred <- readRDS("../data-raw/ASReml/L_LbY_TbL_TbY/DM_No_Vg_Model_ASReml.rds")
+```
+```{r}
+SYold <- readRDS("../data-raw/ignore/PH_BLUPs_kinship.rds")
+SYred <- readRDS("../data-raw/ASReml/L_LbY_TbL_TbY/PH_No_Vg_Model_ASReml.rds")
+oldg <- enframe(SYold$g, name = "Taxa")
+redbu <- as.data.frame(SYred$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa")  %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  rename(red = bu)
+redbu %>%
+  full_join(oldg) %>%
+  right_join(Seq_small327) %>%
+  filter(!is.na(Earliest_Year_CDBN)) %>%
+  ggplot(aes(x = red, y = value)) +
+  geom_point() + geom_abline(slope = 1, intercept = 0)
 ```
 
+
+
+
 ```{r}
-SYasr$loglik
-summary(SYasr)$varcomp
+#SYasr$loglik
+#summary(SYasr)$varcomp
 
 phebyloc <- readRDS(file = file.path("..", "data-raw", "ignore",                                     paste0("Phenotype_by_location_dataframes_",                                            "for-mashr-GWAS_312-and-327.rds")))
-Seq_small327 <- phebyloc[[11]] %>%
-  mutate(Taxa = paste0("Taxa_", Taxa))
+Seq_small327 <- phebyloc[[11]]
 
-SYoldg <- enframe(SYold$g, name = "Taxa") %>%
-  mutate(Taxa = paste0("Taxa_", Taxa))
+SYoldg <- enframe(SYold$g, name = "Taxa")
+
+SYredbu <- as.data.frame(SYred$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa")  %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  rename(SYred = bu)
 
 as.data.frame(SYasr$coefficients$fixed) %>%
   rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  full_join(SYredbu)
+SYredbu %>%
   full_join(SYoldg) %>%
   right_join(Seq_small327) %>%
-  filter(!is.na(Earliest_Year_CDBN) & bu > -10000) %>%
-  ggplot(aes(x = bu, y = value)) +
-  geom_point()
+  filter(!is.na(Earliest_Year_CDBN) & SYred > -10000) %>%
+  ggplot(aes(x = SYred, y = value)) +
+  geom_point() + geom_abline(slope = 1, intercept = 0)
 
 sum(!is.na(Seq_small327$Earliest_Year_CDBN))
+
+as.data.frame(SYasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  filter(bu != 0)
 ```
 
+```{r}
+BMasr <- readRDS("../data-raw/ASReml/BM_Reviewer_Model_ASReml2020-01-11 13.35.44.rds")
+BMpv <- readRDS("../data-raw/ASReml/BM_Reviewer_Model_Predictions2020-01-11 13.48.04.rds")
+
+as.data.frame(BMasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  filter(bu != 0)
+
+BMpv$pvals %>%
+  filter(status == "Estimable")
+
+BMasr$appstvar
+```
+Taxa   SY   DF   DM   BM   HI   PH   SF   SW   LG 
+ 322  320  313  317  215  300  226  313  317  269 
+
+BM 215 individuals
+DF 313
+DM 317 
+HI 300
+LG 269
+PH 226
+SF 313
+SW 317
+SY 320 individuals
+
+ quote(DF), quote(DM), quote(HI), quote(LG),
+               quote(PH),quote(SF), quote(SW), quote(SY)
+               
+# Combine ASReml runs into GAPIT phenotype file
+
+```{r}
+DFasr <- readRDS("../data-raw/ASReml/DF_Reviewer_Model_ASReml2020-01-11 15.03.24.rds")
+DMasr <- readRDS("../data-raw/ASReml/DM_Reviewer_Model_ASReml2020-01-11 15.43.03.rds")
+HIasr <- readRDS("../data-raw/ASReml/HI_Reviewer_Model_ASReml2020-01-11 16.41.31.rds")
+
+BMpv <- readRDS("../data-raw/ASReml/BM_Reviewer_Model_Predictions2020-01-11 13.48.04.rds")
+DFpv <- readRDS("../data-raw/ASReml/DF_Reviewer_Model_Predictions2020-01-11 15.09.48.rds")
+DMpv <- readRDS("../data-raw/ASReml/DM_Reviewer_Model_Predictions2020-01-11 15.53.09.rds")
+HIpv <- readRDS("../data-raw/ASReml/HI_Reviewer_Model_Predictions2020-01-11 16.54.57.rds")
+SYpv <- readRDS("../data-raw/ASReml/SY_Reviewer_Model_Predictions.rds")
+
+SWasr <- readRDS("../data-raw/ASReml/SW_Reviewer_Model_ASReml2020-01-11 20.14.24.rds")
+SFasr <- readRDS("../data-raw/ASReml/SF_Reviewer_Model_ASReml2020-01-11 19.30.16.rds")
+LGasr <- readRDS("../data-raw/ASReml/LG_Reviewer_Model_ASReml2020-01-11 18.17.53.rds")
+SYasr <- readRDS("../data-raw/ASReml/SY_Reviewer_Model_ASReml2020-01-11 21.27.07.rds")
+PHasr <- readRDS("../data-raw/ASReml/PH_Reviewer_Model_ASReml2020-01-11 22.38.29.rds")
+
+SWpv <- readRDS("../data-raw/ASReml/SW_Reviewer_Model_Predictions2020-01-11 20.29.45.rds")
+SFpv <- readRDS("../data-raw/ASReml/SF_Reviewer_Model_Predictions2020-01-11 19.34.32.rds")
+PHpv <- readRDS("../data-raw/ASReml/PH_Reviewer_Model_Predictions2020-01-11 22.52.55.rds")
+```
+
+```{r}
+
+DFasreml <- as.data.frame(DFasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(DFpv$pvals) %>%
+  filter(status == "Estimable") %>%
+  rename(DF = bu)
+SYasreml <- as.data.frame(SYasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(SYpv$pvals) %>%
+  filter(status == "Estimable") %>%
+  rename(SY = bu)
+BMasreml <- as.data.frame(BMasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(BMpv$pvals) %>%
+  filter(status == "Estimable") %>%
+  rename(BM = bu)
+DMasreml <- as.data.frame(DMasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(DMpv$pvals) %>%
+  filter(status == "Estimable") %>%
+  rename(DM = bu)
+HIasreml <- as.data.frame(HIasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(HIpv$pvals) %>%
+  filter(status == "Estimable") %>%
+  rename(HI = bu)
+SFasreml <- as.data.frame(SFasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(SFpv$pvals) %>%
+  filter(status == "Estimable") %>%
+  rename(SF = bu)
+SWasreml <- as.data.frame(SWasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(SWpv$pvals) %>%
+  filter(status == "Estimable") %>%
+  rename(SW = bu)
+PHasreml <- as.data.frame(PHasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(PHpv$pvals) %>%
+  filter(status == "Estimable") %>%
+  rename(PH = bu)
+LGasreml <- as.data.frame(LGasr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  #left_join(LGpv$pvals) %>%
+  filter(bu != 0 & bu < 3) %>%
+  rename(LG = bu)
+gapit_phe_asreml <- SYasreml %>%
+  full_join(DFasreml, by = "Taxa") %>%
+  full_join(DMasreml, by = "Taxa") %>%
+  full_join(BMasreml, by = "Taxa") %>%
+  full_join(HIasreml, by = "Taxa") %>%
+  full_join(PHasreml, by = "Taxa") %>%
+  full_join(SFasreml, by = "Taxa") %>%
+  full_join(SWasreml, by = "Taxa") %>%
+  full_join(LGasreml, by = "Taxa") %>%
+  arrange(Taxa) %>%
+  filter(Taxa != "rcept)") %>%
+  dplyr::select(Taxa, SY, DF, DM, BM, HI, PH, SF, SW, LG)
+write.table(gapit_phe_asreml, file = "ASReml_coefficients_9_GAPIT_2020-01-11.txt", sep = "\t", quote = FALSE)
+
+
+BMpv$pvals %>%
+  filter(status == "Estimable") %>%
+  left_join(BMasreml) %>%
+  ggplot(aes(predicted.value, BM)) + geom_point()
+```
+
+```{r}
+DMasreml %>%
+  arrange(DM)
+DFasreml %>%
+  arrange(DF)
+SYasreml %>%
+  arrange(SY)
+BMasreml %>%
+  arrange(BM)
+HIasreml %>%
+  arrange(HI)
+```
+
+
+# Range of BLUPs
+```{r}
+gapit_phe_asreml <- read.table(file = "ASReml_coefficients_9_GAPIT_2020-01-11.txt", sep = "\t", header = TRUE)
+
+gapit_phe_asreml %>%
+  pivot_longer(cols = SY:LG, names_to = "PHE", values_to = "Value") %>%
+  group_by(PHE) %>%
+  summarise(range = max(Value, na.rm = TRUE) - min(Value, na.rm = TRUE))
+
+colSums(!is.na(gapit_phe_asreml))
+```
+
+quote(BR), quote(CB), quote(CM), quote(CT), quote(EV),
+quote(HB), quote(RR), quote(RU), quote(SA), quote(WM), quote(ZN),  
+quote(GH), 
+```{r}
+asr <- readRDS("../data-raw/ASReml/WM_Reviewer_Model_ASReml2020-01-12 16.27.32.rds")
+pv <- readRDS("../data-raw/ASReml/WM_Reviewer_Model_Predictions2020-01-12 16.28.09.rds")
+```
+# Smaller # Datapoint phenotypes
+BR: 52    52
+CB: 173   173
+CM: 52
+CT: 53
+EV: 108
+HB: 61
+RR: 47
+RU: 154
+SA: 143
+WM: 129
+ZN: 29
+
+Full model with GxE, maybe, for CB, RU, SA, WM
+Reduced model: BR
+```{r}
+asr <- readRDS("../data-raw/ASReml/Reduced/CT_Reduced_Model_ASReml.rds")
+pv <- readRDS("../data-raw/ASReml/Reduced/CT_Reduced_Model_Predictions.rds")
+asreml <- as.data.frame(asr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(pv$pvals) %>%
+  filter(status == "Estimable") %>%
+  rename(phe_coeff = bu)
+asreml
+```
+
+## Reduced Models
+
+remove Taxa by Location code and Taxa by Year, they have 0% variance contributed and hit the boundary condition for most traits (not the 8 with the most datapoints though)
+
+```{r}
+PHE <- list(quote(HB), quote(RR), quote(RU), quote(SA), quote(WM), quote(ZN), quote(BR), quote(CB), quote(CM), quote(CT), quote(EV), quote(GH), quote(PH), 
+            quote(BM), quote(DF), quote(DM), quote(HI), quote(LG),
+             quote(SF), quote(SW), quote(SY))
+
+for(i in seq_along(PHE)){
+testdf <- METG_Seq327 %>%
+  filter(!is.na(eval(PHE[[i]])) & !is.na(Seq_ID)) %>%
+  mutate(LbY = paste(Location_code, Year, sep = "_"),
+         LbY = as_factor(LbY))
+
+asr_out <- asreml(eval(PHE[[i]]) ~ Taxa, random = ~vm(Taxa, Vg2) +
+                             ~idv(Location_code) +
+                             ~idv(Location_code):idv(Year),
+                           residual = ~idv(units), data = testdf, workspace = "9gb")
+
+
+  print(PHE[[i]])
+  print(wald(asr_out))
+  print(asr_out$loglik)
+  print(summary(asr_out)$varcomp)
+  saveRDS(asr_out, file = file.path("data-raw", "ignore",
+                                    paste0(PHE[[i]], "_Reduced_Model_ASReml",
+                                           ".rds")))
+  asr_out_pv <- predict(asr_out, classify = "Taxa")
+  saveRDS(asr_out_pv, file = file.path("data-raw", "ignore",
+                                       paste0(PHE[[i]],
+                                              "_Reduced_Model_Predictions",
+                                              ".rds")))
+}
+```
+# Remove Vg 
+
+Vg can be accounted for in GAPIT, surely?? That makes the values much more similar to the previous gBLUPs...
+
+ZN and RR did not work because of singularities with this model. 
+
+Won't run if I try and add a TbyLbyY term.
+```{r}
+PHE <- list( quote(SY),  quote(SW),quote(HB), quote(RR), quote(RU), quote(SA), quote(WM), quote(ZN),  quote(BR), quote(CB), quote(CM), quote(CT), quote(EV),  quote(GH), quote(PH), 
+            quote(BM), quote(DF), quote(DM), quote(HI), quote(LG),
+             quote(SF))
+
+for(i in seq_along(PHE)){
+asr_out <- asreml(eval(PHE[[i]]) ~ Taxa, random = 
+                             ~idv(Location_code) +
+                             ~idv(Location_code):idv(Year) +
+                             ~idv(Taxa):idv(Location_code) +
+                             ~idv(Taxa):idv(Year),
+                           residual = ~idv(units), data = testdf, workspace = "9gb")
+
+  print(PHE[[i]])
+  print(wald(asr_out))
+  print(asr_out$loglik)
+  print(summary(asr_out)$varcomp)
+  saveRDS(asr_out, file = file.path("data-raw", "ignore",
+                                    paste0(PHE[[i]], "_No_Vg_Decomposed_GxE_Model_ASReml",
+                                           ".rds")))
+  asr_out_pv <- predict(asr_out, classify = "Taxa")
+  saveRDS(asr_out_pv, file = file.path("data-raw", "ignore",
+                                       paste0(PHE[[i]],
+                                              "_No_Vg_Decomposed_GxE_Model_Predictions",
+                                              ".rds")))
+}
+```
+
+## Model w/o Vg BLUPs
+quote(RR), quote(ZN), 
+```{r}
+i=1
+asreml_phe_blup <- Seq_small327 %>%
+  dplyr::select(Taxa)
+PHE <- list( quote(SY),  quote(SW), quote(HB),  quote(RU), quote(SA),
+             quote(WM), quote(BR), quote(CB), quote(CM), quote(CT), 
+             quote(EV), quote(GH), quote(PH), 
+             quote(BM), quote(DF), quote(DM), quote(HI), quote(LG),
+             quote(SF))
+pheq <- list( "SY",  "SW", "HB",  "RU", "SA",
+             "WM", "BR", "CB", "CM", "CT", 
+             "EV", "GH", "PH", 
+             "BM", "DF", "DM", "HI", "LG",
+             "SF")
+
+for(i in seq_along(PHE)){
+asr <- readRDS(file = file.path("..", "data-raw", "ASReml", "L_LbY_TbL_TbY",
+                                paste0(PHE[[i]], "_No_Vg_Model_ASReml",
+                                       ".rds")))
+pv <- readRDS(file = file.path("..", "data-raw", "ASReml", "L_LbY_TbL_TbY",
+                               paste0(PHE[[i]],
+                                      "_No_Vg_Model_Predictions",
+                                      ".rds")))
+asreml <- as.data.frame(asr$coefficients$fixed) %>%
+  rownames_to_column(var = "Taxa") %>%
+  mutate(Taxa = str_sub(Taxa, start = 6)) %>%
+  left_join(pv$pvals) %>%
+  filter(status == "Estimable") %>%
+  dplyr::select(Taxa, bu)
+names(asreml)[2] <- pheq[i]
+asreml_phe_blup <- asreml_phe_blup %>%
+  left_join(asreml, by = "Taxa")
+}
+
+colSums(!is.na(asreml_phe_blup))
+
+write.table(asreml_phe_blup, 
+            file = "ASReml_coefficients_13_GAPIT_2020-01-12.txt", 
+            sep = "\t", quote = FALSE)
+
+```
+
+Drop HB, BR, CM, CT, RR, ZN from GxE analysis.

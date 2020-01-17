@@ -1,20 +1,40 @@
 #!/usr/bin/env Rscript
 
-source(file.path("~", "Alice", "bin", "R_Functions",
-                 "Functions_JLS_plots_2019-03.R"))
+source(file.path("~", "CDBN", "bin", "R_Functions",
+                 "Functions_JLS_plots_2020-01.R"))
+library(CDBNgenomics)
 
-# ----------- PC0 Setup -------------------------------
+# -----------  Setup -------------------------------
 
-setwd(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel", "GAPIT_BLUP_PC0"))
+setwd(file.path("~", "Github", "CDBNgenomics", "data-raw", "ASReml",
+                "GAPIT-for-mash"))
 
-gapitpath = paste0(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel",
-                             "GAPIT_BLUP_PC0"),"/")
-PC0 <- c("BM", "CB", "Det_scr", "Earliest_Year_CDBN", "GHmode", "CT", "DF",
-         "DM", "HB", "PH", "RU", "SA", "SF")
-phenos_PC0 <- c("Biomass (kg)", "CBB score", "Determinacy",
-                "First Year in CDBN", "Growth habit", "CTV presence/absence",
-                "DF (days)", "DM (days)", "HB score",  "PH (cm)", "RU score",
-                "SA score", "SF (days)")
+gapitpath = paste0(file.path("~", "Github", "CDBNgenomics", "data-raw", "ASReml",
+                             "GAPIT-for-mash"),"/")
+PC0 <- gapit_results_in_filepath(path = ".") %>%
+  str_sub(start = 6)
+
+phenos_PC0 <- c("Biomass (kg)","Blackroot response", "CBB score",
+                "BCMV damage score", "CTV presence/absence",
+                "Days to Flowering (days)", "Days to Maturity (days)",
+                "First Year in CDBN", "Early vigor score", "Growth habit",
+                "Halo blight score", "Harvest index (%)", "Lodging score",
+                "Plant height (cm)","Root rot damage score",
+                "Rust damage score",
+                "Seed appearance score", "Seedfill duration (days)",
+                "Seed weight (mg)", "Seed yield (kg/ha)",
+                "White mold damage score", "Zinc deficiency damage score")
+#1] "CMLM.BM"                 "CMLM.BR"
+#3] "CMLM.CB"                 "CMLM.CM"
+#5] "CMLM.CT"                 "CMLM.DF"
+#7] "CMLM.DM"                 "CMLM.Earliest_Year_CDBN"
+#9] "CMLM.EV"                 "CMLM.GH"
+#11] "CMLM.HB"                 "CMLM.HI"
+#13] "CMLM.LG"                 "CMLM.PH"
+#15] "CMLM.RR"                 "CMLM.RU"
+#17] "CMLM.SA"                 "CMLM.SF"
+#19] "CMLM.SW"                 "CMLM.SY"
+#21] "CMLM.WM"                 "CMLM.ZN"
 
 
 ## ----------- Make Top SNP DataFrames ---------------
@@ -53,216 +73,6 @@ saveRDS(allphe_FDR10per_within100kbp,
                       "_GAPIT_BLUP_PC0_phenotypedonly",
                       "_", Sys.Date(), ".rds"))
 
-# ----------- PC1 Setup -------------------------------
-
-setwd(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel", "GAPIT_BLUP_PC1"))
-
-gapitpath = paste0(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel",
-                             "GAPIT_BLUP_PC1"),"/")
-PC1 <- c("RR")
-phenos_PC1 <- c("Root rot score")
-
-
-## ----------- Make Top SNP DataFrames ---------------
-phe_cutoff_tables <- list()
-
-for(i in seq_along(PC1)){
-  GWAS_obj <- load_GAPIT_GWAS_stats(path = gapitpath,
-                                    phenotype = PC1[i])
-  phe_cutoff_tables[[i]] <- gapit_table_topsnps(GWAS_obj = GWAS_obj)
-}
-
-names(phe_cutoff_tables) <- PC1
-allphe_top12SNPs_within0bp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                       "top12SNPs_within0bp")
-allphe_top12SNPs_within100kbp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                          "top12SNPs_within1e+05bp")
-allphe_FDR10per_within100kbp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                         "FDR0.1_within1e+05bp")
-allphe_FDR10per_within0bp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                      "FDR0.1_within0bp")
-
-gapit_write_snp_tables_from_list(list = allphe_top12SNPs_within0bp,
-                                 file = paste0("Top12SNPS_withAnnotatedSNP",
-                                               "_GAPIT_BLUP_PC1_phenotypedonly",
-                                               "_", Sys.Date(), ".xlsx"))
-saveRDS(allphe_FDR10per_within0bp,
-        file = paste0("10perFDR_withAnnotatedSNP",
-                      "_GAPIT_BLUP_PC1_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-saveRDS(allphe_top12SNPs_within100kbp,
-        file = paste0("Top12SNPS_annosWithin100kbp",
-                      "_GAPIT_BLUP_PC1_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-saveRDS(allphe_FDR10per_within100kbp,
-        file = paste0("10perFDR_annosWithin100kbp",
-                      "_GAPIT_BLUP_PC1_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-
-# ----------- PC2 Setup -------------------------------
-
-setwd(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel", "GAPIT_BLUP_PC2"))
-
-gapitpath = paste0(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel",
-                             "GAPIT_BLUP_PC2"),"/")
-PC2 <- c("EV", "GH", "HI", "LG", "SY", "WM", "ZN", "SW", "CB", "HB")
-phenos_PC2 <- c("EV score", "GH type", "HI (%)", "LG score", "SY (kg/ha)",
-                "WM score", "ZN score", "Seed weight (mg)", "CBB score",
-                "HB score")
-
-
-
-## ----------- Make Top SNP DataFrames ---------------
-phe_cutoff_tables <- list()
-
-for(i in seq_along(PC2)){
-  GWAS_obj <- load_GAPIT_GWAS_stats(path = gapitpath,
-                                    phenotype = PC2[i])
-  phe_cutoff_tables[[i]] <- gapit_table_topsnps(GWAS_obj = GWAS_obj)
-}
-
-names(phe_cutoff_tables) <- PC2
-allphe_top12SNPs_within0bp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                       "top12SNPs_within0bp")
-allphe_top12SNPs_within100kbp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                          "top12SNPs_within1e+05bp")
-allphe_FDR10per_within100kbp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                         "FDR0.1_within1e+05bp")
-allphe_FDR10per_within0bp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                      "FDR0.1_within0bp")
-
-gapit_write_snp_tables_from_list(list = allphe_top12SNPs_within0bp,
-                                 file = paste0("Top12SNPS_withAnnotatedSNP",
-                                               "_GAPIT_BLUP_PC2_phenotypedonly",
-                                               "_", Sys.Date(), ".xlsx"))
-saveRDS(allphe_FDR10per_within0bp,
-        file = paste0("10perFDR_withAnnotatedSNP",
-                      "_GAPIT_BLUP_PC2_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-saveRDS(allphe_top12SNPs_within100kbp,
-        file = paste0("Top12SNPS_annosWithin100kbp",
-                      "_GAPIT_BLUP_PC2_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-saveRDS(allphe_FDR10per_within100kbp,
-        file = paste0("10perFDR_annosWithin100kbp",
-                      "_GAPIT_BLUP_PC2_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-
-# ----------- PC3 Setup -------------------------------
-
-setwd(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel", "GAPIT_BLUP_PC3"))
-
-gapitpath = paste0(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel",
-                             "GAPIT_BLUP_PC3"),"/")
-PC3 <- c("BR", "PH", "Earliest_Year_CDBN")
-phenos_PC3 <- c("BR (BCMV response)", "Plant height (cm)",
-                "First Year in the CDBN")
-
-
-## ----------- Make Top SNP DataFrames ---------------
-phe_cutoff_tables <- list()
-
-for(i in seq_along(PC3)){
-  GWAS_obj <- load_GAPIT_GWAS_stats(path = gapitpath,
-                                    phenotype = PC3[i])
-  phe_cutoff_tables[[i]] <- gapit_table_topsnps(GWAS_obj = GWAS_obj)
-}
-
-names(phe_cutoff_tables) <- PC3
-allphe_top12SNPs_within0bp <-
-  gapit_arrange_snp_tables(phe_cutoff_tables, "top12SNPs_within0bp")
-allphe_top12SNPs_within100kbp <-
-  gapit_arrange_snp_tables(phe_cutoff_tables, "top12SNPs_within1e+05bp")
-allphe_FDR10per_within100kbp <-
-  gapit_arrange_snp_tables(phe_cutoff_tables, "FDR0.1_within1e+05bp")
-allphe_FDR10per_within0bp <-
-  gapit_arrange_snp_tables(phe_cutoff_tables, "FDR0.1_within0bp")
-
-gapit_write_snp_tables_from_list(list = allphe_top12SNPs_within0bp,
-                                 file = paste0("Top12SNPS_withAnnotatedSNP",
-                                               "_GAPIT_BLUP_PC3_phenotypedonly",
-                                               "_", Sys.Date(), ".xlsx"))
-saveRDS(allphe_FDR10per_within0bp,
-        file = paste0("10perFDR_withAnnotatedSNP",
-                      "_GAPIT_BLUP_PC3_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-saveRDS(allphe_top12SNPs_within100kbp,
-        file = paste0("Top12SNPS_annosWithin100kbp",
-                      "_GAPIT_BLUP_PC3_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-saveRDS(allphe_FDR10per_within100kbp,
-        file = paste0("10perFDR_annosWithin100kbp",
-                      "_GAPIT_BLUP_PC3_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-
-# ----------- PC10 Setup -------------------------------
-
-setwd(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel", "GAPIT_BLUP_PC10"))
-
-gapitpath = paste0(file.path("~", "Alice", "2016-2017_GBS", "8_Tassel",
-                             "GAPIT_BLUP_PC10"),"/")
-PC10 <- c("RU", "SA", "GH", "SW", "SY", "Earliest_Year_CDBN", "GH_mes",
-          "GH_dur", "GH_MA", "SY_mes", "SY_dur", "SY_MA", "SW_mes", "SW_dur",
-          "SW_MA", "GH_det", "GH_ind", "SY_det", "SY_ind", "SW_det", "SW_ind",
-          "GH_MA_ind", "SY_MA_ind", "SW_MA_ind")
-phenos_PC10 <- c("Rust score", "Seed appearance score", "Growth habit",
-                 "Seed weight (mg)", "Seed yield (kg/ha)",
-                 "First Year in the CDBN", "Growth habit (Mesoamerican race)",
-                 "Growth habit (Durango race)",
-                 "Growth habit (Mesoamerican gene pool)",
-                 "Seed yield (Mesoamerican race)",
-                 "Seed yield (Durango race)",
-                 "Seed yield (Mesoamerican gene pool)",
-                 "Seed weight (Mesoamerican race)",
-                 "Seed weight (Durango race)",
-                 "Seed weight (Mesoamerican gene pool)",
-                 "Growth habit (determinates)",
-                 "Growth habit (indeterminates)",
-                 "Seed yield (determinates)",
-                 "Seed yield (indeterminates)",
-                 "Seed weight (determinates)",
-                 "Seed weight (indeterminates)",
-                 "Growth habit (MA indeterminates)",
-                 "Growth habit (MA indeterminates)",
-                 "Growth habit (MA indeterminates)"
-)
-
-
-## ----------- Make Top SNP DataFrames ---------------
-phe_cutoff_tables <- list()
-
-for(i in seq_along(PC10)){
-  GWAS_obj <- load_GAPIT_GWAS_stats(path = gapitpath,
-                                    phenotype = PC10[i])
-  phe_cutoff_tables[[i]] <- gapit_table_topsnps(GWAS_obj = GWAS_obj)
-}
-
-names(phe_cutoff_tables) <- PC10
-allphe_top12SNPs_within0bp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                       "top12SNPs_within0bp")
-allphe_top12SNPs_within100kbp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                          "top12SNPs_within1e+05bp")
-allphe_FDR10per_within100kbp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                         "FDR0.1_within1e+05bp")
-allphe_FDR10per_within0bp <- gapit_arrange_snp_tables(phe_cutoff_tables,
-                                                      "FDR0.1_within0bp")
-
-gapit_write_snp_tables_from_list(list = allphe_top12SNPs_within0bp,
-                                 file = paste0("Top12SNPS_withAnnotatedSNP",
-                                               "_GAPIT_BLUP_PC10_phenotypedonly",
-                                               "_", Sys.Date(), ".xlsx"))
-saveRDS(allphe_FDR10per_within0bp,
-        file = paste0("10perFDR_withAnnotatedSNP",
-                      "_GAPIT_BLUP_PC10_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-saveRDS(allphe_top12SNPs_within100kbp,
-        file = paste0("Top12SNPS_annosWithin100kbp",
-                      "_GAPIT_BLUP_PC10_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
-saveRDS(allphe_FDR10per_within100kbp,
-        file = paste0("10perFDR_annosWithin100kbp",
-                      "_GAPIT_BLUP_PC10_phenotypedonly",
-                      "_", Sys.Date(), ".rds"))
 
 ## ----------- For PC10, Make plots with TopSNP Effects ---------------
 for(i in seq_along(PC10)){
