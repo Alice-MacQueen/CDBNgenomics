@@ -25,7 +25,7 @@ source("~/Github/Functions_ggplot-theme-adjustments_2018-01-03.R")
 Correlation plot of BLUPs from ASReml
 
 ```{r}
-blups <- read.table("../data-raw/ASReml/ASReml_coefficients_13_GAPIT_2020-01-12.txt", header = TRUE, sep = "\t")
+blups <- read.table("~/Github/CDBNgenomics/data-raw/ASReml_coefficients_13_GAPIT_2020-01-12.txt", header = TRUE, sep = "\t")
 
 blup_cor <- blups[2:20] %>%
   cor(use = "pairwise.complete") # correlation matrix between phenotype breeding values
@@ -65,6 +65,7 @@ FDRannos <- readRDS("~/Github/CDBNgenomics/data-raw/ignore/10perFDR_annosWithin1
 
 ```{r}
 all_data <- readRDS("~/Github/CDBNgenomics/data-raw/ignore/local_scores_22_CDBN_phenotypes_ksi3_list.rds")
+sigzones <- readRDS("~/Github/CDBNgenomics/data-raw/ASReml/GAPIT-for-mash/All_significant_regions_localscore_ksi3.rds")
 ```
 
 ```{r}
@@ -99,7 +100,7 @@ all_data[[20]] %>%
 
 ```
 
-SW
+# SW
 ```{r}
 FDRannos$SW %>%
   left_join(all_data[[19]], by = c("Marker Name" = "SNP"))
@@ -107,10 +108,10 @@ FDRannos$SW %>%
   arrange((`p value`))
 sigzones$SW
 ```
-S05_27269508 5	27269508	27269508	4.828511
-S02_30559854 2	30559854	30559854	4.467288
-S08_62833499 8	62833423	62833499	5.899035	
-S03_4406253 3	4406253	4406260	4.971953
+S05_27269508 5	27269508	27269508	4.828511 Phvul.005G087118	
+S02_30559854 2	30559854	30559854	4.467288 	Phvul.002G151800 	Phvul.002G151900
+S08_62833499 8	62833423	62833499	5.899035		Phvul.008G290500 	Phvul.008G290600	Phvul.008G290700
+S03_4406253 3	4406253	4406260	4.971953  Phvul.003G039900
 
 3	5259067	5261518	53.945135	
 ```{r}
@@ -137,6 +138,8 @@ FDRannos$LG %>%
 FDRannos$LG %>%
   arrange((`p value`))
 sigzones$LG
+
+2932290-2992352
 ```
 0.04077616+0.05782306+0.01812062
 S04_2932290   4	2990488	2992352	4.393083	  2869697   3154155
@@ -154,5 +157,129 @@ all_data[[13]] %>%
   ggplot(aes(x = Position, y = lindley)) +
   geom_line() + geom_point() + geom_hline(yintercept = 3.672843, linetype = 2)
 
+all_data[[13]] %>%
+  filter(Chromosome == 8 & between(Position, 16680874,	18252478)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.672843, linetype = 2)
+all_data[[13]] %>%
+  filter(Chromosome == 8 & between(Position, 18222478,	18252478))
+```
+
+## GH
+
+```{r}
+FDRannos$GH %>%
+  arrange((`p value`))
+sigzones$GH %>%
+  arrange(Chromosome, end)
+```
+S01_6284049    1	6284049	6284049	4.730580	
+S01_42228454   1	42266737	42280778	14.154966	complicated... 38886673 47706619
+S09_30938127   9	30938118	30938127	7.708725	
+S10_42797085   10	42791454	42797324	26.235210	
+
+```{r}
+42280778 - 42228454
+all_data[[10]] %>%
+  filter(Chromosome == 1 & between(Position, 42185896,	42300778)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.672843, linetype = 2)
+all_data[[10]] %>%
+  filter(Chromosome == 1 & between(Position, 35006673,	47876619)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.672843, linetype = 2)
+all_data[[10]] %>%
+  filter(Chromosome == 9 & between(Position, 30918118,	30958127)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.672843, linetype = 2)
+all_data[[10]] %>%
+  filter(Chromosome == 10 & between(Position, 42701454,	42997324)) %>%
+  ggplot(aes(x = Position, y = lindley)) +
+  geom_line() + geom_point() + geom_hline(yintercept = 3.672843, linetype = 2)
+
+```
+
+## RU
+
+```{r}
+FDRannos$RU %>%
+  arrange((`p value`))
+sigzones$RU %>%
+  arrange(Chromosome, end)
+```
+
+S11_50690130 11	50650488	50670920	56.499461
+
+
+## Mash for 17
+
+```{r}
+mash <- readRDS("../data-raw/ASReml/GAPIT-for-mash/Strong_Effects30114SNPs.rds")
+```
+
+```{r}
+get_significant_results(m=mash)[1:10]
+bf <- CDBNgenomics:::get_log10bf(m=mash)
+CDBNgenomics::mash_plot_effects(m = mash, i = 1771)
+CDBNgenomics::mash_plot_effects(m = mash, i = 3217)
+CDBNgenomics::mash_plot_effects(m = mash, i = 7065)
+CDBNgenomics::mash_plot_effects(m = mash, i = 10808)
+CDBNgenomics::mash_plot_effects(m = mash, i = 14290)
+mash_plot_effects(m= mash, i =5784)
+mash_plot_effects(m= mash, i =8008)
+
+bf[10808]
+bf[14290]
+df <- CDBNgenomics:::get_marker_df(m=mash)
+df[which(bf > 6.2),]
+which(bf > 6)
+head(bf)
+
+df[which(bf > 2.),] %>%
+  separate(Marker, into = c("S", "Chr", "_", "Pos"), sep = c(1,3,4)) %>%
+  mutate(bf = bf[which(bf>2)],
+         Chr = as.numeric(Chr),
+         Pos = as.numeric(Pos),
+         Posbin = ceiling(Pos/1000)) %>%
+  filter(Chr == 1) %>%
+  group_by(Posbin) %>% tally() %>%
+  mutate(Poslag = Posbin - lag(Posbin))
+  ggplot(aes(x = Posbin, y = bf)) + 
+  geom_point() + geom_line()
+
+get_significant_results(m = mash, conditions = "Bhat_PH")
+```
+6 to 21 Mb   (5.3Mb to 20.5Mb)
+35 to 46 Mb  (34.1Mb to 45.4Mb)
+
+S01_762752	1771
+S01_3173121	3217	
+S01_34203637	7065
+
+ [1]  1771  3217  4613  5757  5784  6135  7065  8008  8034  8040  8041
+[12] 10808 14290
+
+S01_0.762752	1771			
+S01_3.173121	3217		Phvul.001G033800	 PROTEIN PHOSPHATASE 2C 61-RELATED
+S01_6.244853	4613		growth habit	
+S01_15.360832	5784			days to flowering
+S01_34.203637	7065				Phvul.001G123900. Glutamate synthase (ferredoxin) / Ferredoxin-dependent glutamate synthase
+S01_43.841457	8008			Phvul.001G180600  SERINE/THREONINE PROTEIN PHOSPHATASE 2A 
+S02_49.069219	10808			
+S04_2.486436	14290    lodging score
+
+	Phvul.004G021500.1 (primary)
+Location:	Chr04:2488480..2491886 forward
+Phvul.004G021400.1 (primary)
+Location:	Chr04:2479850..2482645 forward
+
+
+
+```{r}
+pairwise <- mash_plot_pairwise_sharing(effectRDS = "../data-raw/ASReml/GAPIT-for-mash/Pairwise_sharing_Strong_Effects_30114SNPs.rds", label = TRUE)
+
+pairwise$gg_corr
+library(GGally)
+?ggcorr()
 ```
 

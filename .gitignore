@@ -2,9 +2,3 @@
 .Rhistory
 .RData
 .Ruserdata
-inst/doc
-data-raw/ignore/
-R-raw/
-vignettes/
-analysis-raw/
-data-raw/ASReml/
