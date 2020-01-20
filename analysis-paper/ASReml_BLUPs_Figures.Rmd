@@ -227,21 +227,24 @@ CDBNgenomics::mash_plot_effects(m = mash, i = 10808)
 CDBNgenomics::mash_plot_effects(m = mash, i = 14290)
 mash_plot_effects(m= mash, i =5784)
 mash_plot_effects(m= mash, i =8008)
-
+mash_plot_effects(m= mash, i =21703)
 bf[10808]
-bf[14290]
+bf[21703:21800]
 df <- CDBNgenomics:::get_marker_df(m=mash)
-df[which(bf > 6.2),]
+df[which(bf > 1.8),]
 which(bf > 6)
 head(bf)
+df %>%
+  filter(grepl("S07_3", Marker))
 
 df[which(bf > 2.),] %>%
+  df %>%
   separate(Marker, into = c("S", "Chr", "_", "Pos"), sep = c(1,3,4)) %>%
-  mutate(bf = bf[which(bf>2)],
+  mutate(#bf = bf[which(bf>2)],
          Chr = as.numeric(Chr),
          Pos = as.numeric(Pos),
          Posbin = ceiling(Pos/1000)) %>%
-  filter(Chr == 1) %>%
+  filter(Chr == 7 & Pos > 30000000) %>%
   group_by(Posbin) %>% tally() %>%
   mutate(Poslag = Posbin - lag(Posbin))
   ggplot(aes(x = Posbin, y = bf)) + 
