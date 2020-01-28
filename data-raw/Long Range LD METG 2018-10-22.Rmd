@@ -1,0 +1,300 @@
+---
+title: "Long-Range LD METG"
+author: "Alice MacQueen"
+date: "October 22, 2018"
+output: html_document
+---
+
+Explore long range LD between GWAS hits.
+
+Particularly for GH, SW, ...
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(pegas)
+library(fields)
+library(genetics)
+library(reshape2)
+library(tidyverse)
+library(gaston)
+```
+
+
+# Functions for LD across two and three chromosomes
+
+```{r}
+twochrLD <- function(Range1_low, Range1_high, vcf_file01, vcf_info01, Range2_low, Range2_high, vcf_file02, vcf_info02, pdf_filename){
+  # LD for the two different chromosomes.
+vcf1 <- pegas::read.vcf(vcf_file01, from = min(rangePOS(vcf_info01, Range1_low, Range1_high)), to = max(rangePOS(vcf_info01, Range1_low, Range1_high)), quiet=T)
+vcf2 <- pegas::read.vcf(vcf_file02, from = min(rangePOS(vcf_info02, Range2_low, Range2_high)), to = max(rangePOS(vcf_info02, Range2_low, Range2_high)), quiet=T)
+vcf3 <- cbind(vcf1, vcf2)
+vcf3[vcf3=="./."] <- NA
+geno3 <- makeGenotypes(data.frame(vcf3))
+ld3 <- genetics::LD(geno3)
+
+vcf_info_plot <- rbind(vcf_info01[rangePOS(vcf_info01, Range1_low, Range1_high),], vcf_info02[rangePOS(vcf_info02, Range2_low, Range2_high),])
+
+g <- pmax(ld3$r, t(ld3$r), na.rm = TRUE) # extract r from this matrix
+ldr2 <- g*g # element-wise multiplication (matrix multiplication uses %*% percent signs combined with asterisks)
+
+LD.plot(ldr2, snp.positions = vcf_info_plot$POS, pdf.file = pdf_filename)
+LD.plot(ldr2, snp.positions = vcf_info_plot$POS)
+  
+}
+
+threechrLD <- function(Range1_low, Range1_high, vcf_file01, vcf_info01, Range2_low, Range2_high, vcf_file02, vcf_info02, Range3_low, Range3_high, vcf_file03, vcf_info03, pdf_filename){
+  # LD for the two different chromosomes.
+vcf1 <- pegas::read.vcf(vcf_file01, from = min(rangePOS(vcf_info01, Range1_low, Range1_high)), to = max(rangePOS(vcf_info01, Range1_low, Range1_high)), quiet=T)
+vcf2 <- pegas::read.vcf(vcf_file02, from = min(rangePOS(vcf_info02, Range2_low, Range2_high)), to = max(rangePOS(vcf_info02, Range2_low, Range2_high)), quiet=T)
+vcf3 <- pegas::read.vcf(vcf_file03, from = min(rangePOS(vcf_info03, Range3_low, Range3_high)), to = max(rangePOS(vcf_info03, Range3_low, Range3_high)), quiet=T)
+vcfA <- cbind(vcf1, vcf2)
+vcfB <- cbind(vcfA, vcf3)
+vcfB[vcfB=="./."] <- NA
+geno3 <- makeGenotypes(data.frame(vcfB))
+ld3 <- genetics::LD(geno3)
+
+vcf_info_plot <- rbind(vcf_info01[rangePOS(vcf_info01, Range1_low, Range1_high),], vcf_info02[rangePOS(vcf_info02, Range2_low, Range2_high),], vcf_info03[rangePOS(vcf_info03, Range3_low, Range3_high),])
+
+g <- pmax(ld3$r, t(ld3$r), na.rm = TRUE) # extract r from this matrix
+ldr2 <- g*g # element-wise multiplication (matrix multiplication uses %*% percent signs combined with asterisks)
+
+LD.plot(ldr2, snp.positions = vcf_info_plot$POS, pdf.file = pdf_filename)
+LD.plot(ldr2, snp.positions = vcf_info_plot$POS)
+  
+}
+```
+
+# LD between significant hits for GH on Pv01, Pv09, and Pv10.
+
+```{r}
+vcf_file1 = "../../CDBN Genomics/CDBN_SNPs/Region_VCFs/Chr01.vcf"
+vcf_info1 <- VCFloci(vcf_file1)
+chr1 <- readRDS("Chr01VCF.rds")
+
+
+vcf_file9 = "../../CDBN Genomics/CDBN_SNPs/Region_VCFs/Chr09.vcf"
+vcf_info9 <- VCFloci(vcf_file9)
+chr9 <- readRDS("Chr09VCF.rds")
+
+
+vcf_file10 = "../../CDBN Genomics/CDBN_SNPs/Region_VCFs/Chr10.vcf"
+vcf_info10 <- VCFloci(vcf_file10)
+chr10 <- readRDS("Chr10VCF.rds")
+
+```
+
+```{r}
+  
+tworegionLD(Range1_low =  40265303,
+Range1_high = 40265350,
+Range2_low =  42178400,
+Range2_high = 42178500, 
+pdf_filename = "Testing_functionality.pdf",
+vcf_file = vcf_file1,
+vcf_info = vcf_info1)
+
+twochrLD(
+Range1_low =  42178400,
+Range1_high = 42178500,
+vcf_file01 = vcf_file1, 
+vcf_info01 = vcf_info1,
+Range2_low =  30938100,
+Range2_high = 30938300, 
+vcf_file02 = vcf_file9, 
+vcf_info02 = vcf_info9,
+pdf_filename = "Testing_functionality.pdf")
+
+threechrLD(
+Range1_low =  42178400,
+Range1_high = 42178500,
+vcf_file01 = vcf_file1, 
+vcf_info01 = vcf_info1,
+Range2_low =  30938100,
+Range2_high = 30938300, 
+vcf_file02 = vcf_file9, 
+vcf_info02 = vcf_info9,
+Range3_low =  42797080,
+Range3_high = 42797330, 
+vcf_file03 = vcf_file10, 
+vcf_info03 = vcf_info10,
+pdf_filename = "Testing_functionality.pdf")
+
+threechrLD(
+Range1_low =  40265300,
+Range1_high = 40265350,
+vcf_file01 = vcf_file1, 
+vcf_info01 = vcf_info1,
+Range2_low =  30785000,
+Range2_high = 30785150, 
+vcf_file02 = vcf_file9, 
+vcf_info02 = vcf_info9,
+Range3_low =  42797080,
+Range3_high = 42797330, 
+vcf_file03 = vcf_file10, 
+vcf_info03 = vcf_info10,
+pdf_filename = "Testing_functionality.pdf")
+```
+
+# LD between significant hits for GHIN on Pv07, Pv08, and Pv11.
+
+```{r}
+vcf_file7 = "../../CDBN Genomics/CDBN_SNPs/Region_VCFs/Chr07.vcf"
+vcf_info7 <- VCFloci(vcf_file7)
+chr7 <- readRDS("Chr07VCF.rds")
+
+
+vcf_file8 = "../../CDBN Genomics/CDBN_SNPs/Region_VCFs/Chr08.vcf"
+vcf_info8 <- VCFloci(vcf_file8)
+chr8 <- readRDS("Chr08VCF.rds")
+
+
+vcf_file11 = "../../CDBN Genomics/CDBN_SNPs/Region_VCFs/Chr11.vcf"
+vcf_info11 <- VCFloci(vcf_file11)
+chr11 <- readRDS("Chr11VCF.rds")
+
+```
+
+```{r}
+twochrLD(
+Range1_low =  34037200,
+Range1_high = 34037300,
+vcf_file01 = vcf_file7, 
+vcf_info01 = vcf_info7,
+Range2_low =  62307870,
+Range2_high = 62307890, 
+vcf_file02 = vcf_file8, 
+vcf_info02 = vcf_info8,
+pdf_filename = "Testing_functionality.pdf")
+
+threechrLD(
+Range1_low =  34306750,
+Range1_high = 34306800,
+vcf_file01 = vcf_file7, 
+vcf_info01 = vcf_info7,
+Range2_low =  62307870,
+Range2_high = 62307890, 
+vcf_file02 = vcf_file8, 
+vcf_info02 = vcf_info8,
+Range3_low =  43088690,
+Range3_high = 43088779, 
+vcf_file03 = vcf_file11, 
+vcf_info03 = vcf_info11,
+pdf_filename = "Testing_functionality.pdf")
+
+threechrLD(
+Range1_low =  34037200,
+Range1_high = 34037300,
+vcf_file01 = vcf_file7, 
+vcf_info01 = vcf_info7,
+Range2_low =  62307870,
+Range2_high = 62307890, 
+vcf_file02 = vcf_file8, 
+vcf_info02 = vcf_info8,
+Range3_low =  43088690,
+Range3_high = 43088779, 
+vcf_file03 = vcf_file11, 
+vcf_info03 = vcf_info11,
+pdf_filename = "Testing_functionality.pdf")
+
+```
+
+
+
+# Older code that may be helpful to reference
+
+```{r figure 3 setup, cache = TRUE}
+
+
+tworegionLD <- function(Range1_low, Range1_high, Range2_low, Range2_high, pdf_filename, vcf_file, vcf_info){
+# LD for the two small regions.
+vcf1 <- pegas::read.vcf(vcf_file, from = min(rangePOS(vcf_info, Range1_low, Range1_high)), to = max(rangePOS(vcf_info, Range1_low, Range1_high)), quiet=T)
+vcf2 <- pegas::read.vcf(vcf_file, from = min(rangePOS(vcf_info, Range2_low, Range2_high)), to = max(rangePOS(vcf_info, Range2_low, Range2_high)), quiet=T)
+vcf3 <- cbind(vcf1, vcf2)
+vcf3[vcf3=="./."] <- NA
+geno3 <- makeGenotypes(data.frame(vcf3))
+ld3 <- genetics::LD(geno3)
+
+vcf_info_plot <- vcf_info[c(rangePOS(vcf_info, Range1_low, Range1_high), rangePOS(vcf_info, Range2_low, Range2_high)),]
+
+g <- pmax(ld3$r, t(ld3$r), na.rm = TRUE) # extract r from this matrix
+ldr2 <- g*g # element-wise multiplication (matrix multiplication uses %*% percent signs combined with asterisks)
+
+LD.plot(ldr2, snp.positions = vcf_info_plot$POS, pdf.file = pdf_filename)
+LD.plot(ldr2, snp.positions = vcf_info_plot$POS)
+}
+
+sevenregionLD <- function(Range1_low, Range1_high, Range2_low, Range2_high, Range3_low, Range3_high, Range4_low, Range4_high, Range5_low, Range5_high, Range6_low, Range6_high, Range7_low, Range7_high, pdf_filename){
+# LD for the two small regions.
+vcf1 <- pegas::read.vcf(vcf_file, from = min(rangePOS(vcf_info1, Range1_low, Range1_high)), to = max(rangePOS(vcf_info1, Range1_low, Range1_high)), quiet=T)
+vcf2 <- pegas::read.vcf(vcf_file, from = min(rangePOS(vcf_info1, Range2_low, Range2_high)), to = max(rangePOS(vcf_info1, Range2_low, Range2_high)), quiet=T)
+vcf3 <- pegas::read.vcf(vcf_file, from = min(rangePOS(vcf_info1, Range3_low, Range3_high)), to = max(rangePOS(vcf_info1, Range3_low, Range3_high)), quiet=T)
+vcf4 <- pegas::read.vcf(vcf_file, from = min(rangePOS(vcf_info1, Range4_low, Range4_high)), to = max(rangePOS(vcf_info1, Range4_low, Range4_high)), quiet=T)
+vcf5 <- pegas::read.vcf(vcf_file, from = min(rangePOS(vcf_info1, Range5_low, Range5_high)), to = max(rangePOS(vcf_info1, Range5_low, Range5_high)), quiet=T)
+vcf6 <- pegas::read.vcf(vcf_file, from = min(rangePOS(vcf_info1, Range6_low, Range6_high)), to = max(rangePOS(vcf_info1, Range6_low, Range6_high)), quiet=T)
+vcf7 <- pegas::read.vcf(vcf_file, from = min(rangePOS(vcf_info1, Range7_low, Range7_high)), to = max(rangePOS(vcf_info1, Range7_low, Range7_high)), quiet=T)
+vcfA <- cbind(vcf1, vcf2)
+vcfB <- cbind(vcfA, vcf3)
+vcfC <- cbind(vcfB, vcf4)
+vcfD <- cbind(vcfC, vcf5)
+vcfE <- cbind(vcfD, vcf6)
+vcfF <- cbind(vcfE, vcf7)
+vcfF[vcfF=="./."] <- NA
+geno3 <- makeGenotypes(data.frame(vcfF))
+ld3 <- genetics::LD(geno3)
+
+vcf_info <- vcf_info1[c(rangePOS(vcf_info1, Range1_low, Range1_high), rangePOS(vcf_info1, Range2_low, Range2_high), rangePOS(vcf_info1, Range3_low, Range3_high), rangePOS(vcf_info1, Range4_low, Range4_high), rangePOS(vcf_info1, Range5_low, Range5_high), rangePOS(vcf_info1, Range6_low, Range6_high), rangePOS(vcf_info1, Range7_low, Range7_high)),]
+
+g <- pmax(ld3$r, t(ld3$r), na.rm = TRUE) # extract r from this matrix
+ldr2 <- g*g # element-wise multiplication (matrix multiplication uses %*% percent signs combined with asterisks)
+
+colnames(ldr2)[colnames(ldr2) == "S01_40265304"] <- "GH & SY (40)"
+colnames(ldr2)[colnames(ldr2) == "S01_42178468"] <- "GH (42.17)"
+colnames(ldr2)[colnames(ldr2) == "S01_42205896"] <- "SY (42.20)"
+colnames(ldr2)[colnames(ldr2) == "S01_42228454"] <- "SY (42.22)"
+colnames(ldr2)[colnames(ldr2) == "S01_44854993"] <- "3' TFL1"
+colnames(ldr2)[colnames(ldr2) == "S01_44855107"] <- "3' TFL1"
+colnames(ldr2)[colnames(ldr2) == "S01_44857754"] <- "TFL1 (44.85)"
+colnames(ldr2)[colnames(ldr2) == "S01_44857779"] <- "TFL1 (44.85)"
+colnames(ldr2)[colnames(ldr2) == "S01_46141031"] <- "TIR1 (46.14)"
+colnames(ldr2)[colnames(ldr2) == "S01_46141171"] <- "TIR1 (46.14)"
+colnames(ldr2)[colnames(ldr2) == "S01_46145554"] <- "TIR1 (46.14)"
+colnames(ldr2)[colnames(ldr2) == "S01_46154197"] <- "SY Top SNP"
+colnames(ldr2)[colnames(ldr2) == "S01_46154222"] <- "SY (46.15)"
+colnames(ldr2)[colnames(ldr2) == "S01_46154245"] <- "SY (46.15)"
+colnames(ldr2)[colnames(ldr2) == "S01_46154289"] <- "SY (46.15)"
+colnames(ldr2)[colnames(ldr2) == "S01_46154307"] <- "SY (46.15)"
+
+#  colnames(ldr2)
+rownames(ldr2) <- colnames(ldr2)
+#  rownames(ldr2)
+
+LD.plot(ldr2, snp.positions = vcf_info$POS, pdf.file = pdf_filename)
+LD.plot(ldr2, snp.positions = vcf_info$POS)
+}
+```
+
+## 3a. LD plot
+
+Have to write this to a pdf so have to finish this in Inkscape also.
+
+```{r}
+sevenregionLD(
+Range1_low =  40265303,
+Range1_high = 40265350,
+Range2_low =  42178400,
+Range2_high = 42178500,
+Range3_low =  42205890,
+Range3_high = 42205900,
+Range4_low =  42228400,
+Range4_high = 42229000,
+Range5_low =  44854900,
+Range5_high = 44858862,
+Range6_low =  46141030,
+Range6_high = 46149830,
+Range7_low =  46154190,
+Range7_high = 46154308,
+pdf_filename <- "r^2 between SY and GH 40 42 46 TopSNPs TFL1 and TIR1 on Pv01 named 2018-06-06.pdf"
+)
+```
+
