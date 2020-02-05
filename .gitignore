@@ -3,7 +3,18 @@
 .RData
 .Ruserdata
 
+# Large output files
 data-raw/ignore/
 data-raw/ASReml/ignore/
 *list.rds
 data-raw/ASReml/Reduced/
+
+# Large GAPIT output files
+*GAPIT.CMLM.*
+data-raw/ASReml/GAPIT-2-PCs/
+data-raw/ASReml/GAPIT-0-PCs/
+data-raw/ASReml/GAPIT-7-PCs/
+data-raw/ASReml/GAPIT-model-selection/
+
+# Chromosome files that aren't gzipped
+data-raw/GAPIT_Numerical_format_files/Numerical_format*.txt
