@@ -2,3 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+
+data-raw/ignore/
+data-raw/ASReml/ignore/
+*list.rds
