@@ -1,0 +1,139 @@
+nohup: ignoring input
+── Attaching packages ─────────────────────────────────────── tidyverse 1.2.1 ──
+✔ ggplot2 3.2.1     ✔ purrr   0.3.2
+✔ tibble  2.1.3     ✔ dplyr   0.8.3
+✔ tidyr   1.0.0     ✔ stringr 1.4.0
+✔ readr   1.3.1     ✔ forcats 0.4.0
+── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()
+Loading required package: Matrix
+
+Attaching package: ‘Matrix’
+
+The following objects are masked from ‘package:tidyr’:
+
+    expand, pack, unpack
+
+Joining, by = "CDBN_ID"
+Model fitted using the sigma parameterization.
+ASReml 4.1.0 Sat Jan 11 19:17:58 2020
+Allocating main workspace...done!
+          LogLik        Sigma2     DF     wall    cpu
+ 1     -13888.19           1.0   5729 19:19:27   82.2
+ 2     -13227.04           1.0   5729 19:20:48   81.0 (1 restrained)
+ 3     -12553.74           1.0   5729 19:22:09   81.0 (1 restrained)
+ 4     -12173.88           1.0   5729 19:23:30   80.8 (1 restrained)
+ 5     -12034.33           1.0   5729 19:24:52   81.0 (1 restrained)
+ 6     -12014.47           1.0   5729 19:26:13   80.8
+ 7     -12012.78           1.0   5729 19:27:33   80.1
+ 8     -12012.74           1.0   5729 19:28:53   80.1
+ 9     -12012.74           1.0   5729 19:30:14   80.9
+SF
+[1] -12012.74
+                                    component  std.error   z.ratio bound %ch
+Location_code!Location_code      4.577868e+01 13.2456891  3.456119     P   0
+vm(Taxa, Vg2)                    1.832760e-05         NA        NA     B   0
+Location_code:Year!Location_code 3.884128e+01  3.7730268 10.294462     P   0
+Taxa:Year!Taxa                   5.673660e-01  0.1779208  3.188868     P   0
+Taxa:Location_code!Taxa          2.594675e+00  0.3447648  7.525928     P   0
+units!units                      1.488168e+01  0.4085234 36.427975     P   0
+units!R                          1.000000e+00         NA        NA     F   0
+Model fitted using the sigma parameterization.
+ASReml 4.1.0 Sat Jan 11 19:30:16 2020
+Allocating main workspace...done!
+          LogLik        Sigma2     DF     wall    cpu
+ 1     -12012.74           1.0   5729 19:31:45   82.2
+ 2     -12012.74           1.0   5729 19:33:06   80.8
+ 3     -12012.74           1.0   5729 19:34:31   85.4
+Model fitted using the sigma parameterization.
+ASReml 4.1.0 Sat Jan 11 19:34:33 2020
+Allocating main workspace...done!
+          LogLik        Sigma2     DF     wall    cpu
+ 1     -44207.54           1.0  10710 19:39:46  306.7 (1 restrained)
+ 2     -43766.60           1.0  10710 19:44:43  295.6
+ 3     -43687.47           1.0  10710 19:49:39  295.6
+ 4     -43677.29           1.0  10710 19:54:36  296.3
+ 5     -43675.76           1.0  10710 19:59:33  295.9
+ 6     -43675.52           1.0  10710 20:04:29  295.8
+ 7     -43675.50           1.0  10710 20:09:25  295.5
+ 8     -43675.50           1.0  10710 20:14:22  296.1
+SW
+[1] -43675.5
+                                  component  std.error   z.ratio bound %ch
+Location_code!Location_code       569.87003  142.96600  3.986053     P   0
+vm(Taxa, Vg2)                    5780.89878 3593.17717  1.608854     P   0
+Location_code:Year!Location_code  664.00184   51.46249 12.902638     P   0
+Taxa:Year!Taxa                     57.45163    8.12332  7.072432     P   0
+Taxa:Location_code!Taxa           305.66652   16.74381 18.255498     P   0
+units!units                       750.33878   15.07804 49.763668     P   0
+units!R                             1.00000         NA        NA     F   0
+Model fitted using the sigma parameterization.
+ASReml 4.1.0 Sat Jan 11 20:14:24 2020
+Allocating main workspace...done!
+          LogLik        Sigma2     DF     wall    cpu
+ 1     -43675.50           1.0  10710 20:19:39  308.5
+ 2     -43675.50           1.0  10710 20:24:37  296.8
+ 3     -43675.50           1.0  10710 20:29:44  305.9
+Model fitted using the sigma parameterization.
+ASReml 4.1.0 Sat Jan 11 20:29:45 2020
+Allocating main workspace...done!
+          LogLik        Sigma2     DF     wall    cpu
+ 1     -97966.60           1.0  13668 20:36:15  382.9
+ 2     -95931.05           1.0  13668 20:42:34  377.5
+ 3     -93922.13           1.0  13668 20:48:51  376.1
+ 4     -92803.75           1.0  13668 20:55:08  376.4
+ 5     -92406.82           1.0  13668 21:01:25  376.3
+ 6     -92354.17           1.0  13668 21:08:11  405.0
+ 7     -92350.01           1.0  13668 21:14:29  377.4
+ 8     -92349.93           1.0  13668 21:20:48  377.2
+ 9     -92349.93           1.0  13668 21:27:05  377.1
+SY
+[1] -92349.93
+                                  component  std.error   z.ratio bound %ch
+Location_code!Location_code      336055.725 78607.2130  4.275126     P   0
+vm(Taxa, Vg2)                    118993.713 94275.7056  1.262189     P   0
+Location_code:Year!Location_code 424448.149 26816.7553 15.827722     P   0
+Taxa:Year!Taxa                     3809.648   922.5178  4.129620     P   0
+Taxa:Location_code!Taxa           59592.856  2967.9204 20.078994     P   0
+units!units                      161364.946  2757.6918 58.514495     P   0
+units!R                               1.000         NA        NA     F   0
+Model fitted using the sigma parameterization.
+ASReml 4.1.0 Sat Jan 11 21:27:08 2020
+Allocating main workspace...done!
+          LogLik        Sigma2     DF     wall    cpu
+ 1     -92349.93           1.0  13668 21:33:36  381.8
+ 2     -92349.93           1.0  13668 21:39:52  375.7
+ 3     -92349.93           1.0  13668 21:46:17  383.9
+Model fitted using the sigma parameterization.
+ASReml 4.1.0 Sat Jan 11 21:46:18 2020
+Allocating main workspace...done!
+          LogLik        Sigma2     DF     wall    cpu
+ 1     -7256.381           1.0   2011 21:51:11  287.2
+ 2     -6603.713           1.0   2011 21:55:54  282.5
+ 3     -5907.609           1.0   2011 22:00:37  282.3
+ 4     -5458.894           1.0   2011 22:05:20  282.4 (1 restrained)
+ 5     -5229.453           1.0   2011 22:10:04  282.4 (1 restrained)
+ 6     -5179.400           1.0   2011 22:14:48  283.3 (1 restrained)
+ 7     -5149.492           1.0   2011 22:19:31  283.2 (1 restrained)
+ 8     -5135.148           1.0   2011 22:24:15  283.4
+ 9     -5135.092           1.0   2011 22:28:59  283.1
+10     -5135.090           1.0   2011 22:33:43  283.4
+11     -5135.090           1.0   2011 22:38:26  282.5
+PH
+[1] -5135.09
+                                    component    std.error   z.ratio bound %ch
+Location_code!Location_code      39.786862590 14.910665644  2.668349     P 0.0
+vm(Taxa, Vg2)                     9.847792735  3.177854674  3.098881     P 0.0
+Location_code:Year!Location_code 25.342999057  4.356886479  5.816768     P 0.0
+Taxa:Location_code!Taxa           0.014898127  0.008924258  1.669397     P 0.1
+Taxa:Year!Taxa                    0.009474446  0.007930167  1.194735     P 0.4
+units!units                      41.282868404  1.371309349 30.104709     P 0.0
+units!R                           1.000000000           NA        NA     F 0.0
+Model fitted using the sigma parameterization.
+ASReml 4.1.0 Sat Jan 11 22:38:29 2020
+Allocating main workspace...done!
+          LogLik        Sigma2     DF     wall    cpu
+ 1     -5135.090           1.0   2011 22:43:22  286.8
+ 2     -5135.090           1.0   2011 22:48:04  281.7
+ 3     -5135.090           1.0   2011 22:52:53  287.9
