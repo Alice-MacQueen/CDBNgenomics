@@ -4,8 +4,13 @@
 \alias{mash_standard_run}
 \title{A standard run of mashr}
 \usage{
-mash_standard_run(path, list_input = NA, numSNPs = NA,
-  saveoutput = FALSE, U_ed = NA)
+mash_standard_run(
+  path,
+  list_input = NA,
+  numSNPs = NA,
+  saveoutput = FALSE,
+  U_ed = NA
+)
 }
 \arguments{
 \item{path}{File path to the rds files saved from gapit2mashr, a character

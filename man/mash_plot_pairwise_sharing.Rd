@@ -4,9 +4,15 @@
 \alias{mash_plot_pairwise_sharing}
 \title{Create a ggplot of pairwise sharing of mash effects}
 \usage{
-mash_plot_pairwise_sharing(m = NULL, effectRDS = NULL,
-  corrmatrix = NULL, reorder = TRUE, saveoutput = FALSE,
-  filename = NA, ...)
+mash_plot_pairwise_sharing(
+  m = NULL,
+  effectRDS = NULL,
+  corrmatrix = NULL,
+  reorder = TRUE,
+  saveoutput = FALSE,
+  filename = NA,
+  ...
+)
 }
 \arguments{
 \item{m}{An object of type mash}

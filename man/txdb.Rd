@@ -4,7 +4,9 @@
 \name{txdb}
 \alias{txdb}
 \title{Annotation genomic ranges for Phaseolus vulgaris}
-\format{A data frame with 1236881 rows and 9 variables}
+\format{
+A data frame with 1236881 rows and 9 variables
+}
 \usage{
 data(txdb)
 }

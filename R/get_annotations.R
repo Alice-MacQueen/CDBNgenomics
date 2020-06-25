@@ -52,6 +52,7 @@ gapit2anno <- function(df){
 #' @importFrom magrittr %>%
 #' @importFrom tidyr separate
 #' @importFrom tibble as_tibble rownames_to_column
+#' @importFrom stringr str_replace
 mash2anno <- function(df, markers){
   input_df <- get_log10bf(m = df) %>%
     as.data.frame() %>%
@@ -63,7 +64,7 @@ mash2anno <- function(df, markers){
     dplyr::select(-.data$value) %>%
     separate(.data$Marker, into = c("CHR", "POS"), sep = "_") %>%
     mutate(POS = as.integer(.data$POS),
-           CHR = str_replace(CHR, "^S", "Chr")
+           CHR = str_replace(.data$CHR, "^S", "Chr")
            )
   return(input_df)
 }
@@ -72,6 +73,7 @@ mash2anno <- function(df, markers){
 #' @importFrom magrittr %>%
 #' @importFrom readr read_csv
 #' @importFrom tidyr separate
+#' @importFrom stringr str_replace
 rqtl2anno <- function(df){
   input <- read_csv(file = df)
   input_df <- input %>%
@@ -85,7 +87,7 @@ rqtl2anno <- function(df){
            POS = as.integer(.data$POS),
            start = as.integer(.data$start),
            end = as.integer(.data$end),
-           CHR = str_replace(CHR, "^S", "Chr")
+           CHR = str_replace(.data$CHR, "^S", "Chr")
     ) %>%
     dplyr::select(-(.data$marker_pos:.data$flank_hi_pos))
   return(input_df)
@@ -234,7 +236,7 @@ get_tidy_annos <- function(df, input, anno_info, txdb){
 #'
 #' @export
 get_annotations <- function(df, type = c("bigsnp", "gapit", "mash", "rqtl2",
-                                         "table"), n = 10, FDRalpha = 0.1,
+                                         "table"), n = 10, FDRalpha = NA,
                             rangevector = c(0, 10000), markers = NULL,
                             anno_info = NULL, txdb = NULL){
   requireNamespace("VariantAnnotation")
@@ -297,10 +299,22 @@ get_annotations <- function(df, type = c("bigsnp", "gapit", "mash", "rqtl2",
         if(type %in% c("bigsnp", "gapit", "mash")){
           # Prepare input dataframe
           input <- loop_input %>%
+            mutate(CHR = ifelse(is.integer(.data$CHR),
+                                case_when(.data$CHR >= 10 ~ paste0("Chr",
+                                                             as.character(.data$CHR)),
+                                          .data$CHR <= 9 ~ paste0("Chr0",
+                                                            as.character(.data$CHR)),
+                                          TRUE ~ as.character(.data$CHR)), .data$CHR)) %>%
             mutate(start = .data$POS - (range/2),
                    end = .data$POS + (range/2))
         } else if(type == "table"){
           input <- loop_input %>%
+            mutate(CHR = ifelse(is.integer(.data$CHR),
+                                case_when(.data$CHR >= 10 ~ paste0("Chr",
+                                                             as.character(.data$CHR)),
+                                          .data$CHR <= 9 ~ paste0("Chr0",
+                                                            as.character(.data$CHR)),
+                                          TRUE ~ as.character(.data$CHR)), .data$CHR)) %>%
             mutate(start = .data$start - (range/2),
                    end = .data$end + (range/2))
         } else{

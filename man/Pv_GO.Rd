@@ -4,7 +4,9 @@
 \name{Pv_GO}
 \alias{Pv_GO}
 \title{Phaseolus vulgaris gene ontology information}
-\format{A data frame with 1236881 rows and 9 variables}
+\format{
+A data frame with 1236881 rows and 9 variables
+}
 \usage{
 data(Pv_GO)
 }

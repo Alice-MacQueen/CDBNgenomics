@@ -1,10 +1,10 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
-^data-raw/ignore/$
+^data-raw/ignore/
 ^vignettes/$
 ^README\.Rmd$
 ^\.travis\.yml$
-^data-raw$
-^analysis-paper/$
-^analysis-raw/$
-^R-raw/$
+^data-raw/
+^analysis-paper/
+^analysis-raw/
+^R-raw/

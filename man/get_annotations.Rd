@@ -4,9 +4,16 @@
 \alias{get_annotations}
 \title{Create a Table of Annotated Top SNPs for Phaseolus vulgaris}
 \usage{
-get_annotations(df, type = c("bigsnp", "gapit", "mash", "rqtl2",
-  "table"), n = 10, FDRalpha = 0.1, rangevector = c(0, 10000),
-  markers = NULL, anno_info = NULL, txdb = NULL)
+get_annotations(
+  df,
+  type = c("bigsnp", "gapit", "mash", "rqtl2", "table"),
+  n = 10,
+  FDRalpha = NA,
+  rangevector = c(0, 10000),
+  markers = NULL,
+  anno_info = NULL,
+  txdb = NULL
+)
 }
 \arguments{
 \item{df}{a data frame or tbl_df. Can be bigsnpr output, mashr output

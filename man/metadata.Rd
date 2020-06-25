@@ -4,7 +4,9 @@
 \name{metadata}
 \alias{metadata}
 \title{Metadata for 327 entries in the CDBN panel.}
-\format{A data frame with 327 rows and 10 variables}
+\format{
+A data frame with 327 rows and 10 variables
+}
 \usage{
 data(metadata)
 }

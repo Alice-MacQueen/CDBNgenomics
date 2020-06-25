@@ -4,7 +4,9 @@
 \name{Pv_kegg}
 \alias{Pv_kegg}
 \title{Phaseolus vulgaris kegg information}
-\format{A data frame with 1236881 rows and 9 variables}
+\format{
+A data frame with 1236881 rows and 9 variables
+}
 \usage{
 data(Pv_kegg)
 }

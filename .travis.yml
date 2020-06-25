@@ -16,7 +16,7 @@ env:
 # the package.
 install:
   - R -e 'install.packages(c("assertthat","abind","GGally","mvtnorm","Rcpp","RcppArmadillo","RcppGSL","rmeta","cluster","cowplot","dplyr","ggplot2","magrittr","purrr","readr","rlang","rlist","stats","stringr","tibble","tidyr","tidyselect","viridis","testthat","devtools"))'
-  - R -e 'devtools::install_github("stephens999/ashr")'
+  - R -e 'devtools::install_github("stephens999/ashr", "privefl/bigsnpr")'
 
 before_install:
   - sudo apt-get install -y libgsl0-dev

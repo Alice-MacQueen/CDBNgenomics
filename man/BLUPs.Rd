@@ -4,7 +4,9 @@
 \name{BLUPs}
 \alias{BLUPs}
 \title{Best Linear Unbiased Predictors for 21 phenotypes from the CDBN panel.}
-\format{A data frame with 327 rows and 31 variables}
+\format{
+A data frame with 327 rows and 31 variables
+}
 \usage{
 data(BLUPs)
 }

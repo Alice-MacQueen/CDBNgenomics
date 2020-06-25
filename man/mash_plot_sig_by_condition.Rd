@@ -4,8 +4,12 @@
 \alias{mash_plot_sig_by_condition}
 \title{Significant SNPs per number of conditions}
 \usage{
-mash_plot_sig_by_condition(m, conditions = NA, saveoutput = FALSE,
-  thresh = 0.05)
+mash_plot_sig_by_condition(
+  m,
+  conditions = NA,
+  saveoutput = FALSE,
+  thresh = 0.05
+)
 }
 \arguments{
 \item{m}{An object of type mash}

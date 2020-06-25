@@ -4,8 +4,12 @@
 \alias{mash_plot_manhattan_by_condition}
 \title{Manhattan plot in ggplot colored by significant conditions}
 \usage{
-mash_plot_manhattan_by_condition(m, cond = NA, saveoutput = FALSE,
-  thresh = 0.05)
+mash_plot_manhattan_by_condition(
+  m,
+  cond = NA,
+  saveoutput = FALSE,
+  thresh = 0.05
+)
 }
 \arguments{
 \item{m}{A mash object (outputted by mash).}
