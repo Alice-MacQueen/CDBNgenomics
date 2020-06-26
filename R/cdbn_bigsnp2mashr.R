@@ -56,7 +56,7 @@ get_top_effects_log10p <- function(path, gwas_rds, phenotype, numSNPs,
     # name top_set columns appropriately so that the joined file will have
     # informative column names.
     rm(log10p)
-    
+
   } else if(attr(gwas_obj, "class")[1] == "tbl_df" &
             "log10p" %in% names(gwas_obj) &
             "CHR" %in% names(gwas_obj) &
@@ -64,9 +64,9 @@ get_top_effects_log10p <- function(path, gwas_rds, phenotype, numSNPs,
             "bigsnpscore" %in% names(gwas_obj) &
             "estim" %in% names(gwas_obj) &
             "std_err" %in% names(gwas_obj)){
-    
+
     #message(paste0("Finding top SNPs for bigsnpr output saved by ",
-    #        "'pvdiv_standard_gwas()'."))
+    #        "'cdbn_standard_gwas()'."))
     pre_mash_1 <- tibble(CHR = gwas_obj$CHR, POS = gwas_obj$POS,
                          bigsnpscore = gwas_obj$bigsnpscore,
                          log10p = gwas_obj$log10p)
@@ -80,7 +80,7 @@ get_top_effects_log10p <- function(path, gwas_rds, phenotype, numSNPs,
       # informative column names.
     } else {
       top_set <- pre_mash_1 %>%
-        top_n(-numSNPs, .data$log10p) %>%
+        top_n(numSNPs, .data$log10p) %>%
         mutate(score_log10p = abs(.data$log10p)) %>%
         dplyr::select(.data$CHR, .data$POS, .data$score_log10p)
       names(top_set)[3] <- paste0(phenotype, "_score_log10p")
@@ -104,7 +104,6 @@ get_top_effects_log10p <- function(path, gwas_rds, phenotype, numSNPs,
 #' @param phenotype Character vector. Single phenotype name
 #' @param top_set Top markers chosen
 #' @param random_sample Numeric vector. Random sample of SNPs
-#' @param scale Logical. Should effect sizes and std errors be scaled?
 #' @param markers Marker names for the GWAS you ran
 #' @param markers2 Markers to include if SNPs are LD clumped.
 #' @param model One of linear or logistic. Type of GWAS model.
@@ -114,16 +113,16 @@ get_top_effects_log10p <- function(path, gwas_rds, phenotype, numSNPs,
 #' @importFrom stats predict
 #' @importFrom dplyr left_join mutate
 s_hat_bigsnp <- function(path, gwas_rds, phenotype, top_set, random_sample,
-                         scale = TRUE, markers = NULL, markers2 = NULL,
+                         markers = NULL, markers2 = NULL,
                          model = c("linear", "logistic"), clump = TRUE){
-  
+
   gwas_obj <- readRDS(file = file.path(path, gwas_rds))
-  
+
   if(attr(gwas_obj, "class")[1] == "mhtest"){
     log10p <- predict(gwas_obj)
     # Use bigsnpr predict function to generate p-values
     pre_mash_1 <- as_tibble(cbind(gwas_obj, markers, log10p))
-    
+
   } else if(attr(gwas_obj, "class")[1] == "tbl_df" &
             "log10p" %in% names(gwas_obj) &
             "CHR" %in% names(gwas_obj) &
@@ -135,15 +134,16 @@ s_hat_bigsnp <- function(path, gwas_rds, phenotype, top_set, random_sample,
     pre_mash_1 <- gwas_obj %>% dplyr::select(.data$CHR, .data$POS, .data$estim,
                                              .data$std_err, .data$bigsnpscore,
                                              .data$log10p)
-    
+
   } else {
     stop(paste0("RDS objects need to be of class 'mhtest' or of class ",
                 "'tbl_df' with columns 'CHR', 'POS', 'log10p', 'estim', ",
                 "'std_err', and 'bigsnpscore'."))
   }
   standardization <- max(abs(pre_mash_1$estim), na.rm = TRUE)
-  
+
   pre_mash_strong <- top_set %>%
+    dplyr::select(.data$CHR, .data$POS, .data$max_score_log10p) %>%
     dplyr::left_join(pre_mash_1, by = c("CHR", "POS")) %>%
     dplyr::mutate(stderr_d = .data$std_err / standardization,
                   effect_d = .data$estim / standardization,
@@ -178,20 +178,20 @@ s_hat_bigsnp <- function(path, gwas_rds, phenotype, top_set, random_sample,
                                          is.nan(.data$effect_d) ~ 0,
                                          TRUE ~ .data$effect_d))
   }
-  
+
   if((model == "linear" & attr(gwas_obj, "class")[1] == "mhtest") |
      attr(gwas_obj, "class")[1] == "tbl_df"){
     # CHR POS max_score_log10p CHRN estim std.err score log10p stderr_d effect_d
     # CHR POS estim std.err tscore log10p stderr_d effect_d
-    
-    names(pre_mash_strong)[3] <- paste0(phenotype, "_maxscore")
+
+    #names(pre_mash_strong)[3] <- paste0(phenotype, "_maxscore")
     names(pre_mash_strong)[4] <- paste0("Bhat_", phenotype)
     names(pre_mash_strong)[5] <- paste0("Shat_",phenotype)
     names(pre_mash_strong)[6] <- paste0(phenotype, "_tscore")
     names(pre_mash_strong)[7] <- paste0(phenotype, "_log10p")
     names(pre_mash_strong)[8] <- paste0("Stand_Shat", phenotype)
     names(pre_mash_strong)[9] <- paste0("Stand_Bhat", phenotype)
-    
+
     names(pre_mash_random)[3] <- paste0("Bhat_", phenotype)
     names(pre_mash_random)[4] <- paste0("Shat_",phenotype)
     names(pre_mash_random)[5] <- paste0(phenotype, "_tscore")
@@ -202,7 +202,7 @@ s_hat_bigsnp <- function(path, gwas_rds, phenotype, top_set, random_sample,
   if(model == "logistic" & attr(gwas_obj, "class")[1] == "mhtest"){
     # CHR POS max_score_log10p CHRN estim std.err score log10p stderr_d effect_d
     # CHR POS estim std.err niter zscore log10p stderr_d effect_d
-    names(pre_mash_strong)[3] <- paste0(phenotype, "_maxscore")
+    #names(pre_mash_strong)[3] <- paste0(phenotype, "_maxscore")
     names(pre_mash_strong)[4] <- paste0("Bhat_", phenotype)
     names(pre_mash_strong)[5] <- paste0("Shat_",phenotype)
     names(pre_mash_strong)[6] <- paste0(phenotype, "_niter")
@@ -210,7 +210,7 @@ s_hat_bigsnp <- function(path, gwas_rds, phenotype, top_set, random_sample,
     names(pre_mash_strong)[8] <- paste0(phenotype, "_log10p")
     names(pre_mash_strong)[9] <- paste0("Stand_Shat_",phenotype)
     names(pre_mash_strong)[10] <- paste0("Stand_Bhat_",phenotype)
-    
+
     names(pre_mash_random)[3] <- paste0("Bhat_", phenotype)
     names(pre_mash_random)[4] <- paste0("Shat_",phenotype)
     names(pre_mash_random)[5] <- paste0(phenotype, "_niter")
@@ -221,7 +221,7 @@ s_hat_bigsnp <- function(path, gwas_rds, phenotype, top_set, random_sample,
   }
   # name top_set columns appropriately so that the joined file will have
   # informative column names.
-  
+
   return(list(strong_df_1 = pre_mash_strong, random_df_1 = pre_mash_random))
 }
 
@@ -242,7 +242,7 @@ s_hat_bigsnp <- function(path, gwas_rds, phenotype, top_set, random_sample,
 #'    the rds file names.
 #' @param clump Logical. Should SNPs be clumped by LD & p-value to
 #'    standardize signal strength across different LD blocks? Default is TRUE.
-#' @param scale Logical. Should marker effects in each condition be
+#' @param scaled Logical. Should marker effects in each condition be
 #'    scaled to fall between -1 and 1? Default is TRUE.
 #' @param snp The "bigSNP" object used to run the gwas; needed if clump is
 #'    TRUE. Load with bigsnpr::snp_attach().
@@ -273,7 +273,7 @@ s_hat_bigsnp <- function(path, gwas_rds, phenotype, top_set, random_sample,
 #' model = "linear", saveoutput = TRUE)}
 #'
 #' @import bigsnpr
-#' @importFrom dplyr full_join left_join case_when arrange mutate select slice filter group_by n
+#' @importFrom dplyr full_join left_join case_when arrange mutate select slice filter group_by n add_tally
 #' @importFrom magrittr %>%
 #' @importFrom stringr str_sub
 #' @importFrom tidyr gather unite
@@ -281,7 +281,7 @@ s_hat_bigsnp <- function(path, gwas_rds, phenotype, top_set, random_sample,
 #'
 #' @export
 cdbn_bigsnp2mashr <- function(path = ".", snp = NULL, gwas_rds = NA,
-                              phenotypes = NA, clump = TRUE, scale = TRUE,
+                              phenotypes = NA, clump = TRUE, scaled = TRUE,
                               numSNPs = 1000, model = c("linear", "logistic"),
                               saveoutput = FALSE){
   match.arg(model, c("linear", "logistic"))
@@ -307,16 +307,17 @@ cdbn_bigsnp2mashr <- function(path = ".", snp = NULL, gwas_rds = NA,
   }
   numSNPs <- as.integer(numSNPs)
   G <- snp$genotypes
-  markers <- tibble(CHR = snp$map$chromosome, POS = snp$map$physical.pos)
-  
+  markers <- tibble(CHR = snp$map$chromosome, POS = snp$map$physical.pos) %>%
+    mutate(marker = paste(.data$CHR, .data$POS, sep = "_"))
+
   message(paste0("Starting part one: Making a data frame of all SNPs ",
                  "in the top ", numSNPs, " SNPs
                  by maximum -log10(p-values) for at least one phenotype."))
-  
+
   top_set <- get_top_effects_log10p(path = path, gwas_rds = phe_col[1],
                                       phenotype = phenotypes[1],
                                       numSNPs = numSNPs, markers = markers)
-  
+
   for(i in seq_along(phe_col)[-1]){
     message(paste0("Picking top SNPs for GWAS for ", phenotypes[i]," (", i,
                    " of ", length(phe_col), ")."))
@@ -332,9 +333,10 @@ cdbn_bigsnp2mashr <- function(path = ".", snp = NULL, gwas_rds = NA,
     gather(key = "Condition", value = "score_log10p", -(1:2)) %>%
     group_by(.data$CHR, .data$POS) %>%
     filter(!is.na(.data$score_log10p)) %>%
-    mutate(max_score_log10p = max(.data$score_log10p)*n()) %>%
+    mutate(max_score_log10p = max(.data$score_log10p)) %>%
+    add_tally(name = "n_cond_in_top_set") %>%
     slice(which.max(.data$max_score_log10p)) %>%
-    dplyr::select(-.data$Condition, -.data$score_log10p) %>%
+    dplyr::select(-.data$score_log10p) %>%
     arrange(.data$CHR, .data$POS) %>%
     mutate(marker = paste(.data$CHR, .data$POS, sep = "_"))
   if(clump == TRUE){
@@ -348,24 +350,23 @@ cdbn_bigsnp2mashr <- function(path = ".", snp = NULL, gwas_rds = NA,
                                S = top_set$max_score_log10p,
                                ncores = nb_cores(), infos.pos = top_set$POS)
     # Outputs a numeric vector corresponding to clumped rows w/ the best p-value
-    top_set <- top_set[top_clumps,] %>%
-      dplyr::select(.data$CHR, .data$POS, .data$max_score_log10p)
+    top_set <- top_set[top_clumps,]
   } else {
-    top_set <- top_set %>%
-      dplyr::select(.data$CHR, .data$POS, .data$max_score_log10p)
+    top_set <- top_set# %>%
+      #dplyr::select(.data$CHR, .data$POS, .data$max_score_log10p)
   }
   if(saveoutput == TRUE){
     saveRDS(top_set, file = file.path(path, paste0("Part-One-Output_",
                                                    "Top-Effects-", numSNPs,
                                                    "-SNPs.rds")))
   }
-  
+
   message(paste0("Part One: data frame of SNPs to keep complete.
                  ----------------"))
   message(paste0("Starting Part Two: Creating strong and random dataframes of ",
                  "B_hat and S_hat
                  values for use in mashr."))
-  
+
   set.seed(1234) # Makes the random data frames reproducible.
   if(clump == TRUE){
     random_sample <- sample(1:nrow(markers2), length(top_clumps)*2) %>%
@@ -380,19 +381,20 @@ cdbn_bigsnp2mashr <- function(path = ".", snp = NULL, gwas_rds = NA,
                               random_sample = random_sample, model = model,
                               markers = markers, markers2 = markers2,
                               clump = clump)
-  
+
   mash_df_strong <- mash_list_1$strong_df_1
   mash_df_random <- mash_list_1$random_df_1
-  
+
   for(i in seq_along(phe_col)[-1]){
-    if(scale){
+    if(scaled == TRUE){
       message(paste0("Determining standardized B_hat and S_hat values for ",
-                     nrow(top_set), " SNPs in GWAS for ", phenotypes[i]," (",
-                     i, " of ", length(phe_col), ")."))
+                     nrow(top_set), " SNPs from ", phenotypes[i],
+                     " GWAS (phenotype ", i, " of ", length(phe_col), ")."))
     } else {
       message(paste0("Determining unscaled B_hat and S_hat values for ",
-                     nrow(top_set), " SNPs in GWAS for ", phenotypes[i]," (",
-                     i, " of ", length(phe_col), ")."))
+                     nrow(top_set), " SNPs from ", phenotypes[i],
+                     " GWAS
+                     (phenotype ", i, " of ", length(phe_col), ")."))
     }
     mash_list_1 <- s_hat_bigsnp(path = path, gwas_rds = phe_col[i],
                                 phenotype = phenotypes[i],
@@ -400,13 +402,14 @@ cdbn_bigsnp2mashr <- function(path = ".", snp = NULL, gwas_rds = NA,
                                 random_sample = random_sample, model = model,
                                 markers = markers, markers2 = markers2,
                                 clump = clump)
-    
+
     mash_df_strong <- mash_df_strong %>%
-      dplyr::left_join(mash_list_1$strong_df_1, by = c("CHR", "POS"))
+      dplyr::left_join(mash_list_1$strong_df_1, by = c("CHR", "POS",
+                                                       "max_score_log10p"))
     mash_df_random <- mash_df_random %>%
       dplyr::left_join(mash_list_1$random_df_1, by = c("CHR", "POS"))
   }
-  if(scale == TRUE){
+  if(scaled == TRUE){
     bhat_strong <- mash_df_strong %>%
       unite(col = "SNP", .data$CHR, .data$POS) %>%
       dplyr::select(.data$SNP, tidyselect::starts_with("Stand_Bhat"))
@@ -445,7 +448,7 @@ cdbn_bigsnp2mashr <- function(path = ".", snp = NULL, gwas_rds = NA,
   S_hat_random <- data.frame(shat_random, row.names = "SNP")
   B_hat_strong <- data.frame(bhat_strong, row.names = "SNP")
   S_hat_strong <- data.frame(shat_strong, row.names = "SNP")
-  
+
   if(saveoutput == TRUE){
     saveRDS(B_hat_strong, file = file.path(path, paste0("B_hat_strong_df_",
                                                         numSNPs, "topSNPs.rds")))

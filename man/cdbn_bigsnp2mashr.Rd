@@ -10,7 +10,7 @@ cdbn_bigsnp2mashr(
   gwas_rds = NA,
   phenotypes = NA,
   clump = TRUE,
-  scale = TRUE,
+  scaled = TRUE,
   numSNPs = 1000,
   model = c("linear", "logistic"),
   saveoutput = FALSE
@@ -32,7 +32,7 @@ the rds file names.}
 \item{clump}{Logical. Should SNPs be clumped by LD & p-value to
 standardize signal strength across different LD blocks? Default is TRUE.}
 
-\item{scale}{Logical. Should marker effects in each condition be
+\item{scaled}{Logical. Should marker effects in each condition be
 scaled to fall between -1 and 1? Default is TRUE.}
 
 \item{numSNPs}{The number of most significant SNPs selected from each GWAS.
