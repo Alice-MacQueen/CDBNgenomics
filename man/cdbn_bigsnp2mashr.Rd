@@ -13,7 +13,8 @@ cdbn_bigsnp2mashr(
   scaled = TRUE,
   numSNPs = 1000,
   model = c("linear", "logistic"),
-  saveoutput = FALSE
+  saveoutput = FALSE,
+  suffix = ""
 )
 }
 \arguments{
@@ -44,6 +45,9 @@ Default is "linear".}
 
 \item{saveoutput}{Logical. Should the function's output also be saved to RDS
 files? Default is FALSE.}
+
+\item{suffix}{Character. Optional. If the function's output is saved to RDS
+files, what unique suffix should be used?}
 }
 \value{
 A list containing five data frames: the SNPs selected, the B_hat
