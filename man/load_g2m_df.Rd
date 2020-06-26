@@ -4,7 +4,7 @@
 \alias{load_g2m_df}
 \title{Read in the random and the strong datasets}
 \usage{
-load_g2m_df(path, numSNPs)
+load_g2m_df(path, numSNPs, suffix)
 }
 \arguments{
 \item{path}{File path to the rds files saved from bigsnpr, a character
@@ -13,6 +13,9 @@ string. Defaults to the working directory.}
 \item{numSNPs}{The number of most significant SNPs selected from each GWAS.
 Ideally this will give 1 million or fewer total cells in the resultant
 mash dataframes. Defaults to 1000.}
+
+\item{suffix}{Character. Optional. Should be the unique suffix used to
+save \code{cdbn_bigsnp2mashr} output as RDS files, if it was used.}
 }
 \value{
 A list containing five data frames: the SNPs selected, the B_hat

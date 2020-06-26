@@ -358,9 +358,11 @@ cdbn_bigsnp2mashr <- function(path = ".", snp = NULL, gwas_rds = NA,
       #dplyr::select(.data$CHR, .data$POS, .data$max_score_log10p)
   }
   if(saveoutput == TRUE){
+    if(!(str_sub(suffix, end = 1) %in% c("", "_")))
+    { suffix <- paste0("_", suffix) }
     saveRDS(top_set, file = file.path(path, paste0("Part-One-Output_",
                                                    "Top-Effects-", numSNPs,
-                                                   "-SNPs.rds")))
+                                                   "-SNPs", suffix, ".rds")))
   }
 
   message(paste0("Part One: data frame of SNPs to keep complete.
@@ -452,6 +454,8 @@ cdbn_bigsnp2mashr <- function(path = ".", snp = NULL, gwas_rds = NA,
   S_hat_strong <- data.frame(shat_strong, row.names = "SNP")
 
   if(saveoutput == TRUE){
+    if(!(str_sub(suffix, end = 1) %in% c("", "_")))
+      { suffix <- paste0("_", suffix) }
     saveRDS(B_hat_strong, file = file.path(path, paste0("B_hat_strong_df_",
                                                         numSNPs, "topSNPs",
                                                         suffix, ".rds")))

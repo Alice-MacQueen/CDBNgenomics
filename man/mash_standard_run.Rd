@@ -5,11 +5,13 @@
 \title{A standard run of mashr}
 \usage{
 mash_standard_run(
-  path,
+  path = ".",
   list_input = NA,
   numSNPs = NA,
+  suffix = "",
   saveoutput = FALSE,
-  U_ed = NA
+  U_ed = NA,
+  U_hyp = NA
 )
 }
 \arguments{
@@ -24,10 +26,17 @@ chosen in gapit2mashr.}
 Ideally this will give 1 million or fewer total cells in the resultant
 mash dataframes. Defaults to 1000.}
 
+\item{suffix}{Character. Optional. Should be the unique suffix used to
+save \code{cdbn_bigsnp2mashr} output as RDS files, if it was used.}
+
 \item{saveoutput}{Logical. Should the function's output also be saved to RDS
 files? Default is FALSE.}
 
-\item{U_ed}{An optional character vector}
+\item{U_ed}{An optional list of data-driven covariance matrices, or a
+character vector containing the complete path to a .rds containing these
+matrices.}
+
+\item{U_hyp}{An optional list of covariance matrices specified by the user.}
 }
 \value{
 A mash result, manipulable using functions in mashr and by mash_plot
