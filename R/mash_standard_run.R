@@ -54,6 +54,8 @@ make_U_ed <- function(path, data_strong, numSNPs, saveoutput = FALSE, suffix){
   return(U_ed)
 }
 
+get_loglik=function(a){a$loglik}
+
 #' A standard run of mashr
 #'
 #' @description If you have prepared mash input using the gapit2mashr R package,
@@ -85,7 +87,7 @@ make_U_ed <- function(path, data_strong, numSNPs, saveoutput = FALSE, suffix){
 #'     input, you should not use this function - instead, follow the
 #'     recommendations of the vignettes in the mashr package itself.
 #'
-#' @importFrom ashr get_fitted_g get_loglik
+#' @importFrom ashr get_fitted_g
 #'
 #' @export
 mash_standard_run <- function(path = ".", list_input = NA, numSNPs = NA,
@@ -161,7 +163,7 @@ mash_standard_run <- function(path = ".", list_input = NA, numSNPs = NA,
                                        suffix, ".rds")))
   }
   print("Log likelihood with specified covariance matrices: ")
-  print(get_loglik(m2),digits = 10)
+  print(get_loglik(m2), digits = 10)
   print("How many significant markers?")
   print(length(get_significant_results(m2)))
   if(saveoutput == TRUE){
