@@ -14,7 +14,7 @@ mash_plot_sig_by_condition(
 \arguments{
 \item{m}{An object of type mash}
 
-\item{conditions}{A vector of conditions}
+\item{conditions}{A vector of conditions. Get these with get_colnames(m).}
 
 \item{saveoutput}{Logical. Save plot output to a file? Default is FALSE.}
 

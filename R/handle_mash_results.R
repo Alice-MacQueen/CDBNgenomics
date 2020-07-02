@@ -420,6 +420,7 @@ get_GxE = function(m, factor = 0.4, thresh = 0.05){
 #' @param i Optional. Integer or integer vector. The result number to plot, in
 #'     the order of the mash object. 1 would be the first marker in the mash
 #'     object, for example. Find these with \code{\link{get_marker_df}}.
+#' @param marker Optional. Print the marker name on the plot?
 #' @param saveoutput Logical. Should the output be saved to the path?
 #'
 #' @note Specify only one of n or i.
@@ -427,46 +428,80 @@ get_GxE = function(m, factor = 0.4, thresh = 0.05){
 #' @importFrom ashr get_psd
 #' @importFrom cowplot save_plot
 #' @importFrom tibble enframe
-#' @importFrom dplyr mutate
+#' @importFrom dplyr mutate separate case_when
 #' @import ggplot2
 #' @importFrom purrr as_vector
+#' @importFrom stringr string_replace string_replace_all
 #'
 #' @export
-mash_plot_effects <- function(m, n = NA, i = NA, saveoutput = FALSE){
-  stopifnot((!is.na(n[1]) | !is.na(i[1])))
-  if(is.na(i[1])){
+mash_plot_effects <- function(m, n = NA, i = NA, marker = TRUE,
+                              saveoutput = FALSE){
+  stopifnot((typeof(n) %in% c("double", "integer") | typeof(i) %in% c("double", "integer")))
+  if(typeof(n) != "logical"){
     i <- get_significant_results(m)[n]
+    marker_df <- names(i) %>%
+      enframe(name = NULL, value = "Marker") %>%
+      separate(.data$Marker, into = c("Chr", "Pos"), sep = "_", convert = TRUE) %>%
+      mutate(Mb = round(.data$Pos / 1000000, digits = 1)) %>%
+      mutate(Marker = case_when(typeof(.data$Chr) == "integer" &
+                                  .data$Chr < 10 ~
+                                  paste0("Chr0", .data$Chr, " ",
+                                         .data$Mb, " Mb"),
+                                typeof(.data$Chr) == "integer" &
+                                  .data$Chr >= 10 ~
+                                  paste0("Chr", .data$Chr, " ",
+                                         .data$Mb, " Mb"),
+                                TRUE ~ paste0(Chr, " ", .data$Mb, " Mb")
+                                ))
+      marker_name <- marker_df$Marker
+  } else {
+    marker_df <- get_marker_df(m)[i,] %>%
+      separate(.data$Marker, into = c("Chr", "Pos"), sep = "_",
+               convert = TRUE) %>%
+      mutate(Mb = round(.data$Pos / 1000000, digits = 1)) %>%
+      mutate(Marker = case_when(typeof(.data$Chr) == "integer"
+                                & .data$Chr < 10 ~
+                                  paste0("Chr0", .data$Chr, " ", Mb, " Mb"),
+                                typeof(.data$Chr) == "integer" &
+                                  .data$Chr >= 10 ~
+                                  paste0("Chr", .data$Chr, " ", .data$Mb,
+                                         " Mb"),
+                                TRUE ~ paste0(.data$Chr, " ", .data$Mb, " Mb")
+                                ))
+    marker_name <- marker_df$Marker
   }
-
   effectplot <- get_colnames(m) %>%
-    enframe(name = "Conditions") %>%
+    enframe(name = NULL, value = "Conditions") %>%
     mutate(mn = get_pm(m)[i,],
-           se = get_psd(m)[i,])
+           se = get_psd(m)[i,]) %>%
+    mutate(Conditions = str_replace(.data$Conditions,
+                               "^Stand_Bhat_?",
+                               ""),
+           Conditions = str_replace(.data$Conditions,
+                               "^Bhat_?",
+                               ""),
+           )
 
   ggobject <- ggplot(data = effectplot) +
-    geom_point(mapping = aes(x = as.factor(.data$value), y = .data$mn)) +
+    geom_point(mapping = aes(x = as.factor(.data$Conditions), y = .data$mn)) +
     CDBNgenomics::theme_oeco +
     geom_errorbar(mapping = aes(ymin = .data$mn - .data$se,
                                 ymax = .data$mn + .data$se,
                                 x = .data$Conditions), width = 0.3) +
     geom_hline(yintercept = 0, lty = 2) +
     labs(x = "Conditions", y = "Effect Size") +
-    scale_x_discrete(labels = as_vector(.data$value)) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-  if(saveoutput == TRUE){
-    if(is.na(n[1])){
-      save_plot(filename = paste0("Effect_plot_",
-                                  names(get_significant_results(m))[n], ".png"),
-                plot = ggobject, base_aspect_ratio = 0.8, base_height = 4.5)
-    } else {
-      plotname <- get_marker_df(m)[i]
-      save_plot(filename = paste0("Effect_plot_", plotname$Marker, ".png"),
-                plot = ggobject, base_aspect_ratio = 0.8, base_height = 4.5)
-
-    }
+  if(marker == TRUE){
+    ggobject <- ggobject + ggtitle(label = marker_name)
   }
-  return(list(marker = i, effect_df = effectplot, ggobject = ggobject))
+  if(saveoutput == TRUE){
+      save_plot(filename = paste0("Effect_plot_", str_replace_all(marker_name,
+                                                              " ", "_"), "_",
+                                  get_date_filename(), ".png"),
+                plot = ggobject, base_aspect_ratio = 0.9, base_height = 3.5)
+  }
+  return(list(marker = marker_name, effect_df = effectplot,
+              ggobject = ggobject))
 }
 
 #' ggplot of covariance matrix masses
@@ -536,7 +571,7 @@ mash_plot_covar <- function(m, saveoutput = FALSE){
 #'     ggplot object containing the Manhattan.
 #'
 #' @importFrom cowplot save_plot
-#' @importFrom dplyr rename select arrange mutate left_join
+#' @importFrom dplyr rename select arrange mutate left_join separate
 #' @import ggplot2
 #' @importFrom tibble as_tibble rownames_to_column enframe
 #' @importFrom tidyr separate
@@ -546,8 +581,8 @@ mash_plot_covar <- function(m, saveoutput = FALSE){
 #' \dontrun{manhattan_out <- mash_ggman_by_condition(m = m, saveoutput = TRUE)}
 #'
 #' @export
-mash_plot_manhattan_by_condition <- function(m, cond = NA,
-                                             saveoutput = FALSE, thresh = 0.05){
+mash_plot_manhattan_by_condition <- function(m, cond = NA, saveoutput = FALSE,
+                                             thresh = 0.05){
   num_sig_in_cond <- c()
 
   if(is.na(cond)[1]){
@@ -565,11 +600,9 @@ mash_plot_manhattan_by_condition <- function(m, cond = NA,
 
   ggman_df <- get_n_significant_conditions(m = m, thresh = thresh,
                                            conditions = cond) %>%
-    enframe(name = "Marker") %>%
-    rename(Num_Sig_Conditions = .data$value) %>%
+    enframe(name = "Marker", value = Num_Sig_Conditions) %>%
     separate(.data$Marker, into = c("Chr", "Pos"), remove = FALSE, sep = "_",
-             extra = "merge") %>%
-    mutate(Pos = as.numeric(.data$Pos)) %>%
+             extra = "merge", convert = TRUE) %>%
     left_join(log10bf_df, by = "Marker") %>%
     arrange(.data$Chr, .data$Pos)
 
@@ -585,13 +618,13 @@ mash_plot_manhattan_by_condition <- function(m, cond = NA,
           axis.ticks.x = element_blank(),
           panel.background = element_rect(fill=NA)) +
     labs(x = "Chromosome", y = log10BF) +
-    scale_x_continuous(expand = c(0.3, 0.3)) +
+    scale_x_continuous(expand = c(0.25, 0.25)) +
     scale_shape_manual(values = rep(c(21,22),9), guide = FALSE)
 
   if(saveoutput == TRUE){
     save_plot(paste0("Manhattan_mash_", get_date_filename(),
-                     ".png"), plot = ggmanobject, base_aspect_ratio = 2.5,
-              base_height = 4)
+                     ".png"), plot = ggmanobject, base_aspect_ratio = 2.4,
+              base_height = 3)
   }
 
   return(list(ggman_df = ggman_df, ggmanobject = ggmanobject))
@@ -615,6 +648,7 @@ mash_plot_manhattan_by_condition <- function(m, cond = NA,
 #'
 #' @importFrom GGally ggcorr
 #' @import viridis
+#' @importFrom stringr string_replace_all
 #'
 #' @return A list containing a dataframe containing the correlations and a
 #'     ggplot2 object containing the correlation plot.
@@ -655,6 +689,14 @@ mash_plot_pairwise_sharing <- function(m = NULL, effectRDS = NULL,
   } else if(!is.null(m)){
     shared_effects <- get_pairwise_sharing(m = m, factor = factor,
                                            lfsr_thresh = lfsr_thresh, FUN = FUN)
+    rownames(shared_effects) <- str_replace_all(rownames(shared_effects),
+                                                "^Stand_Bhat_?", "")
+    rownames(shared_effects) <- str_replace_all(rownames(shared_effects),
+                                                "^Bhat_?", "")
+    colnames(shared_effects) <- str_replace_all(colnames(shared_effects),
+                                               "^Stand_Bhat_?", "")
+    colnames(shared_effects) <- str_replace_all(colnames(shared_effects),
+                    "^Bhat_?", "")
   } else {
     stop(paste0("Please specify one of these: ",
                 "1. a mash output object (m), ",
@@ -667,16 +709,14 @@ mash_plot_pairwise_sharing <- function(m = NULL, effectRDS = NULL,
 
   if(reorder == TRUE){
     corrdf <- reorder_cormat(cormat = shared_effects)
-    corrplot <- CDBNgenomics::theme_oeco +
-      ggcorr(data = NULL, cor_matrix = corrdf, geom = geom,
+    corrplot <- ggcorr(data = NULL, cor_matrix = corrdf, geom = geom,
                        label = label, label_alpha = label_alpha,
                        label_size = label_size, hjust = hjust, vjust = vjust,
                        layout.exp = layout.exp, min_size = min_size,
                        max_size = max_size) +
       scale_color_viridis(option = option)
   } else {
-    corrplot <-  CDBNgenomics::theme_oeco +
-      ggcorr(data = NULL, cor_matrix = shared_effects, geom = geom,
+    corrplot <- ggcorr(data = NULL, cor_matrix = shared_effects, geom = geom,
                        label = label, label_alpha = label_alpha,
                        label_size = label_size, hjust = hjust, vjust = vjust,
                        layout.exp = layout.exp, min_size = min_size,
@@ -699,7 +739,7 @@ mash_plot_pairwise_sharing <- function(m = NULL, effectRDS = NULL,
 #'     of conditions.
 #'
 #' @param m An object of type mash
-#' @param conditions A vector of conditions
+#' @param conditions A vector of conditions. Get these with get_colnames(m).
 #' @param saveoutput Logical. Save plot output to a file? Default is FALSE.
 #' @param thresh What is the threshold to call an effect significant? Default is
 #'     0.05.
@@ -721,8 +761,10 @@ mash_plot_sig_by_condition <- function(m, conditions = NA, saveoutput = FALSE,
   thresh <- as.numeric(thresh)
   num_sig_in_cond <- c()
 
-  if(is.na(conditions)[1]){
-    cond <- get_colnames(m = m)
+  if(typeof(conditions) == "logical"){
+    cond <- get_colnames(m)
+  } else {
+    cond <- conditions
   }
 
   SigHist <- get_n_significant_conditions(m = m, thresh = thresh,
@@ -742,7 +784,7 @@ mash_plot_sig_by_condition <- function(m, conditions = NA, saveoutput = FALSE,
     ylab(label = "Number of Significant SNPs")
 
   if(saveoutput == TRUE){
-    ggsave(paste0("SNPs with significant effects in n conditions ",
+    ggsave(paste0("SNPs_significant_by_number_of_conditions_",
                   get_date_filename(),
                   ".bmp"), width = 5, height = 3, units = "in", dpi = 400)
   }
