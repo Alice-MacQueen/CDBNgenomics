@@ -428,10 +428,11 @@ get_GxE = function(m, factor = 0.4, thresh = 0.05){
 #' @importFrom ashr get_psd
 #' @importFrom cowplot save_plot
 #' @importFrom tibble enframe
-#' @importFrom dplyr mutate separate case_when
+#' @importFrom dplyr mutate case_when
+#' @importFrom tidyr separate
 #' @import ggplot2
 #' @importFrom purrr as_vector
-#' @importFrom stringr string_replace string_replace_all
+#' @importFrom stringr str_replace str_replace_all
 #'
 #' @export
 mash_plot_effects <- function(m, n = NA, i = NA, marker = TRUE,
@@ -571,7 +572,7 @@ mash_plot_covar <- function(m, saveoutput = FALSE){
 #'     ggplot object containing the Manhattan.
 #'
 #' @importFrom cowplot save_plot
-#' @importFrom dplyr rename select arrange mutate left_join separate
+#' @importFrom dplyr rename select arrange mutate left_join
 #' @import ggplot2
 #' @importFrom tibble as_tibble rownames_to_column enframe
 #' @importFrom tidyr separate
@@ -600,7 +601,7 @@ mash_plot_manhattan_by_condition <- function(m, cond = NA, saveoutput = FALSE,
 
   ggman_df <- get_n_significant_conditions(m = m, thresh = thresh,
                                            conditions = cond) %>%
-    enframe(name = "Marker", value = Num_Sig_Conditions) %>%
+    enframe(name = "Marker", value = "Num_Sig_Conditions") %>%
     separate(.data$Marker, into = c("Chr", "Pos"), remove = FALSE, sep = "_",
              extra = "merge", convert = TRUE) %>%
     left_join(log10bf_df, by = "Marker") %>%
@@ -648,7 +649,7 @@ mash_plot_manhattan_by_condition <- function(m, cond = NA, saveoutput = FALSE,
 #'
 #' @importFrom GGally ggcorr
 #' @import viridis
-#' @importFrom stringr string_replace_all
+#' @importFrom stringr str_replace_all
 #'
 #' @return A list containing a dataframe containing the correlations and a
 #'     ggplot2 object containing the correlation plot.
