@@ -58,12 +58,12 @@ get_loglik=function(a){a$loglik}
 
 #' A standard run of mashr
 #'
-#' @description If you have prepared mash input using the gapit2mashr R package,
-#'     use this function on the output to run mash as recommended by vignettes
-#'     in the mashr package.
+#' @description If you have prepared mash input using the bigsnp2mashr function
+#'     or the gapit2mashr R package, use this function on the output to run mash
+#'     as recommended by vignettes in the mashr package.
 #'
-#' @param path File path to the rds files saved from gapit2mashr, a character
-#'     string. Defaults to the working directory.
+#' @param path File path to the rds files saved from gapit2mashr, or
+#'     bigsnpr2mashr, as a character string. Defaults to the working directory.
 #' @param list_input A list containing five data frames: the SNPs selected, the
 #'     B_hat and S_hat matrices for the strong SNP set and for a random SNP set
 #'     chosen in gapit2mashr.
@@ -83,9 +83,9 @@ get_loglik=function(a){a$loglik}
 #'     functions in the CDBNgenomics package.
 #'
 #' @note This is a convenience function for users who have prepared their data
-#'     using gapit2mashr. If you have not used gapit2mashr to make your mash
-#'     input, you should not use this function - instead, follow the
-#'     recommendations of the vignettes in the mashr package itself.
+#'     using gapit2mashr or bigsnp2mashr. If you have not used these functions
+#'     to make your mash input, you should not use this function - instead,
+#'     follow the recommendations of the vignettes in the mashr package itself.
 #'
 #' @importFrom ashr get_fitted_g
 #'
