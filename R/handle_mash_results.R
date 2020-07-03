@@ -410,6 +410,25 @@ get_GxE = function(m, factor = 0.4, thresh = 0.05){
               S_1_col = S_j))
 }
 
+#' @title Get the positions of objects in a mash object Ulist that are above
+#'      some mass threshold.
+#'
+#' @description Get the positions of objects in a mash object Ulist that are
+#'      above some mass threshold.
+#'
+#' @param m An object of type mash
+#' @param thresh Numeric. The mass threshold for including a covariance matrix
+#'
+#' @export
+get_U_by_mass <- function(m, thresh = 0.05){
+  umass <- mash_plot_covar(m, saveoutput = FALSE)
+  mass_thresh <-
+    umass$covar_df$`Covariance Matrix`[which(umass$covar_df$Mass >= thresh)]
+  Ulist_order <- names(get_Ulist(m))
+  range <- which(Ulist_order %in% mass_thresh)
+  return(range)
+}
+
 
 # --- Plot & Save Plots ---------
 
