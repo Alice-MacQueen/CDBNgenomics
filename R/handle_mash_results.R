@@ -138,6 +138,11 @@ get_colnames <- function(m){
   return(column_names)
 }
 
+get_Ulist <- function(m){
+  Ulist <- m$fitted_g$Ulist
+  return(Ulist)
+}
+
 #' Return the Bayes Factor for each effect
 #'
 #' @param m the mash result (from joint or 1by1 analysis); must have been computed using usepointmass=TRUE
@@ -522,8 +527,8 @@ mash_plot_effects <- function(m, n = NA, i = NA, marker = TRUE,
 #' @note This plot can be useful for seeing the overall patterns of effects in
 #'     the data used in mash. Non-significant effects will add mass to the
 #'     "no_effects" covariance matrix, while significant effects will add mass
-#'     to one of the other covariance matrices. You can use GGally::ggcorr() to
-#'     plot the covariance matrix patterns themselves.
+#'     to one of the other covariance matrices. You can use mash_plot_Ulist()
+#'     to plot the covariance matrix patterns themselves.
 #'
 #' @export
 mash_plot_covar <- function(m, saveoutput = FALSE){
@@ -552,6 +557,80 @@ mash_plot_covar <- function(m, saveoutput = FALSE){
   return(list(covar_df = df, ggobject = ggobject))
 }
 
+#' ggplot of specific covariance matrix patterns
+#'
+#' @description Creates a tile plot using ggplot of the covariance matrices
+#'     specified in the mash model.
+#'
+#' @param m An object of type mash
+#' @param range Numeric vector. Which covariance matrices should be plotted?
+#' @param saveoutput Logical. Should the output be saved to the path?
+#'
+#' @return A list of dataframes used to make the tile plots and the plots
+#'     themselves.
+#'
+#' @importFrom cowplot save_plot
+#' @importFrom tibble enframe as_tibble
+#' @importFrom dplyr mutate filter
+#' @importFrom rlist list.append
+#' @importFrom stringr str_replace
+#' @importFrom tidyr pivot_longer
+#' @import ggplot2
+#'
+#' @export
+mash_plot_Ulist <- function(m, range = NA, saveoutput = FALSE){
+  Ulist <- get_Ulist(m)
+  Ureturn <- list()
+  stopifnot(typeof(range) %in% c("double", "integer", "logical"))
+  if(typeof(range) == "logical"){
+    range <- seq_along(Ulist)
+  }
+
+  for(u in range){
+    U1 <- Ulist[[u]]
+    # Remove half the tiles if the matrix is symmetric
+    if(isSymmetric(U1)){
+      for(i in 1:nrow(U1)){
+        for(j in 1:ncol(U1)){
+          if(i < j){
+            U1[i, j] <- NA
+          }
+        }
+      }
+    }
+    colnames(U1) <- str_replace(get_colnames(m), "(Stand_)??Bhat_?", "")
+  U1 <- as_tibble(U1, .name_repair = "unique") %>%
+    mutate(rowU = str_replace(get_colnames(m), "(Stand_)??Bhat_?", "")) %>%
+    pivot_longer(cols = -.data$rowU, names_to = "colU",
+                 values_to = "covar") %>%
+    filter(!is.na(.data$covar))
+
+  U1_covar <- U1 %>%
+    ggplot(aes(x = .data$rowU, y = .data$colU)) +
+    CDBNgenomics::theme_oeco +
+    geom_tile(aes(fill = .data$covar), na.rm = TRUE) +
+    scale_fill_gradientn(colors = c("#440154FF", "#3B528BFF", "#2C728EFF",
+                                  "white", "#27AD81FF", "#5DC863FF",
+                                  "#FDE725FF"), limits = c(-1,1)) +
+    geom_text(aes(label = round(.data$covar, 1)), color = "darkgrey") +
+    theme(legend.position = c(0.2, 0.9),
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+    xlab("") + ylab("") + ggtitle(names(Ulist)[u])
+
+  Ureturn <- list.append(Ureturn, U1 = U1,
+              ggobject = U1_covar)
+  names(Ureturn)[-2] <- paste0(names(Ulist)[u], "_df")
+  names(Ureturn)[-1] <- paste0(names(Ulist)[u], "_ggobject")
+
+  if(saveoutput == TRUE){
+    save_plot(paste0("Covariances_plot_", names(Ulist)[u], "_",
+                     get_date_filename(), ".png"), plot = U1_covar,
+              base_height = 3.8, base_asp = 1.3)
+    }
+
+  }
+  return(Ureturn)
+}
 
 #' @title Manhattan plot in ggplot colored by significant conditions
 #'

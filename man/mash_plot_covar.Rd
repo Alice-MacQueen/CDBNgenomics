@@ -19,6 +19,6 @@ Creates a bar plot using ggplot of the masses that are on each
 This plot can be useful for seeing the overall patterns of effects in
     the data used in mash. Non-significant effects will add mass to the
     "no_effects" covariance matrix, while significant effects will add mass
-    to one of the other covariance matrices. You can use GGally::ggcorr() to
-    plot the covariance matrix patterns themselves.
+    to one of the other covariance matrices. You can use mash_plot_Ulist()
+    to plot the covariance matrix patterns themselves.
 }
