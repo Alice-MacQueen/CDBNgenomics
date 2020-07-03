@@ -11,6 +11,7 @@ mash_plot_pairwise_sharing(
   reorder = TRUE,
   saveoutput = FALSE,
   filename = NA,
+  suffix = "",
   ...
 )
 }
@@ -26,6 +27,9 @@ mash_plot_pairwise_sharing(
 \item{saveoutput}{Logical. Should the output be saved to the path?}
 
 \item{filename}{Character string with an output filename. Optional.}
+
+\item{suffix}{Character. Optional. A unique suffix used to save the files,
+instead of the current date & time.}
 
 \item{...}{Other arguments to \code{\link{get_pairwise_sharing}} or
 \code{\link{ggcorr}}.}

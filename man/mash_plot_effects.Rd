@@ -4,7 +4,14 @@
 \alias{mash_plot_effects}
 \title{ggplot of single mash effect}
 \usage{
-mash_plot_effects(m, n = NA, i = NA, marker = TRUE, saveoutput = FALSE)
+mash_plot_effects(
+  m,
+  n = NA,
+  i = NA,
+  marker = TRUE,
+  saveoutput = FALSE,
+  suffix = ""
+)
 }
 \arguments{
 \item{m}{An object of type mash}
@@ -20,6 +27,9 @@ object, for example. Find these with \code{\link{get_marker_df}}.}
 \item{marker}{Optional. Print the marker name on the plot?}
 
 \item{saveoutput}{Logical. Should the output be saved to the path?}
+
+\item{suffix}{Character. Optional. A unique suffix used to save the files,
+instead of the current date & time.}
 }
 \description{
 Creates a plot with point estimates and standard errors for

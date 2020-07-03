@@ -4,12 +4,15 @@
 \alias{mash_plot_covar}
 \title{ggplot of covariance matrix masses}
 \usage{
-mash_plot_covar(m, saveoutput = FALSE)
+mash_plot_covar(m, saveoutput = FALSE, suffix = "")
 }
 \arguments{
 \item{m}{An object of type mash}
 
 \item{saveoutput}{Logical. Should the output be saved to the path?}
+
+\item{suffix}{Character. Optional. A unique suffix used to save the files,
+instead of the current date & time.}
 }
 \description{
 Creates a bar plot using ggplot of the masses that are on each

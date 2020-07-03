@@ -8,6 +8,7 @@ mash_plot_sig_by_condition(
   m,
   conditions = NA,
   saveoutput = FALSE,
+  suffix = "",
   thresh = 0.05
 )
 }
@@ -18,8 +19,11 @@ mash_plot_sig_by_condition(
 
 \item{saveoutput}{Logical. Save plot output to a file? Default is FALSE.}
 
-\item{thresh}{What is the threshold to call an effect significant? Default is
-0.05.}
+\item{suffix}{Character. Optional. A unique suffix used to save the files,
+instead of the current date & time.}
+
+\item{thresh}{What is the threshold to call an effect significant? Default
+is 0.05.}
 }
 \value{
 A list containing a dataframe of the number of SNPs significant per

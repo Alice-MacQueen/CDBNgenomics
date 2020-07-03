@@ -8,6 +8,7 @@ mash_plot_manhattan_by_condition(
   m,
   cond = NA,
   saveoutput = FALSE,
+  suffix = "",
   thresh = 0.05
 )
 }
@@ -18,6 +19,9 @@ mash_plot_manhattan_by_condition(
 column in the mash object.}
 
 \item{saveoutput}{Logical. Should the output be saved to the path?}
+
+\item{suffix}{Character. Optional. A unique suffix used to save the files,
+instead of the current date & time.}
 
 \item{thresh}{Numeric. The threshold used for the local false sign rate to
 call significance in a condition.}

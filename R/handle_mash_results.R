@@ -446,6 +446,8 @@ get_U_by_mass <- function(m, thresh = 0.05){
 #'     object, for example. Find these with \code{\link{get_marker_df}}.
 #' @param marker Optional. Print the marker name on the plot?
 #' @param saveoutput Logical. Should the output be saved to the path?
+#' @param suffix Character. Optional. A unique suffix used to save the files,
+#'     instead of the current date & time.
 #'
 #' @note Specify only one of n or i.
 #'
@@ -460,8 +462,9 @@ get_U_by_mass <- function(m, thresh = 0.05){
 #'
 #' @export
 mash_plot_effects <- function(m, n = NA, i = NA, marker = TRUE,
-                              saveoutput = FALSE){
+                              saveoutput = FALSE, suffix = ""){
   stopifnot((typeof(n) %in% c("double", "integer") | typeof(i) %in% c("double", "integer")))
+
   if(typeof(n) != "logical"){
     i <- get_significant_results(m)[n]
     marker_df <- names(i) %>%
@@ -520,9 +523,15 @@ mash_plot_effects <- function(m, n = NA, i = NA, marker = TRUE,
     ggobject <- ggobject + ggtitle(label = marker_name)
   }
   if(saveoutput == TRUE){
+    if(!(str_sub(suffix, end = 1) %in% c("", "_"))){
+      suffix <- paste0("_", suffix)
+      }
+    if(str_sub(suffix, end = 1) %in% c("")){
+      suffix <- get_date_filename()
+      }
       save_plot(filename = paste0("Effect_plot_", str_replace_all(marker_name,
                                                               " ", "_"), "_",
-                                  get_date_filename(), ".png"),
+                                  suffix, ".png"),
                 plot = ggobject, base_aspect_ratio = 0.9, base_height = 3.5)
   }
   return(list(marker = marker_name, effect_df = effectplot,
@@ -536,6 +545,8 @@ mash_plot_effects <- function(m, n = NA, i = NA, marker = TRUE,
 #'
 #' @param m An object of type mash
 #' @param saveoutput Logical. Should the output be saved to the path?
+#' @param suffix Character. Optional. A unique suffix used to save the files,
+#'     instead of the current date & time.
 #'
 #' @importFrom cowplot save_plot
 #' @importFrom tibble enframe
@@ -550,7 +561,7 @@ mash_plot_effects <- function(m, n = NA, i = NA, marker = TRUE,
 #'     to plot the covariance matrix patterns themselves.
 #'
 #' @export
-mash_plot_covar <- function(m, saveoutput = FALSE){
+mash_plot_covar <- function(m, saveoutput = FALSE, suffix = ""){
   df <- get_estimated_pi(m)
   df <- enframe(df, name = "Covariance Matrix", value = "Mass") %>%
     mutate(`Covariance Matrix` = str_replace(.data$`Covariance Matrix`,
@@ -569,7 +580,13 @@ mash_plot_covar <- function(m, saveoutput = FALSE){
     CDBNgenomics::theme_oeco
 
   if(saveoutput == TRUE){
-    save_plot(paste0("Covariance_matrix_mass_plot_", get_date_filename(),
+    if(!(str_sub(suffix, end = 1) %in% c("", "_"))){
+      suffix <- paste0("_", suffix)
+    }
+    if(str_sub(suffix, end = 1) %in% c("")){
+      suffix <- get_date_filename()
+    }
+    save_plot(paste0("Covariance_matrix_mass_plot_", suffix,
                      ".png"), plot = ggobject, base_aspect_ratio = 1,
               base_height = 4)
   }
@@ -584,6 +601,8 @@ mash_plot_covar <- function(m, saveoutput = FALSE){
 #' @param m An object of type mash
 #' @param range Numeric vector. Which covariance matrices should be plotted?
 #' @param saveoutput Logical. Should the output be saved to the path?
+#' @param suffix Character. Optional. A unique suffix used to save the files,
+#'     instead of the current date & time.
 #'
 #' @return A list of dataframes used to make the tile plots and the plots
 #'     themselves.
@@ -597,7 +616,7 @@ mash_plot_covar <- function(m, saveoutput = FALSE){
 #' @import ggplot2
 #'
 #' @export
-mash_plot_Ulist <- function(m, range = NA, saveoutput = FALSE){
+mash_plot_Ulist <- function(m, range = NA, saveoutput = FALSE, suffix = ""){
   Ulist <- get_Ulist(m)
   Ureturn <- list()
   stopifnot(typeof(range) %in% c("double", "integer", "logical"))
@@ -642,8 +661,14 @@ mash_plot_Ulist <- function(m, range = NA, saveoutput = FALSE){
   names(Ureturn)[-1] <- paste0(names(Ulist)[u], "_ggobject")
 
   if(saveoutput == TRUE){
+    if(!(str_sub(suffix, end = 1) %in% c("", "_"))){
+      suffix <- paste0("_", suffix)
+    }
+    if(str_sub(suffix, end = 1) %in% c("")){
+      suffix <- get_date_filename()
+    }
     save_plot(paste0("Covariances_plot_", names(Ulist)[u], "_",
-                     get_date_filename(), ".png"), plot = U1_covar,
+                     suffix, ".png"), plot = U1_covar,
               base_height = 3.8, base_asp = 1.3)
     }
 
@@ -663,6 +688,8 @@ mash_plot_Ulist <- function(m, range = NA, saveoutput = FALSE){
 #' @param cond A vector of phenotypes. Defaults to the names of each
 #'     column in the mash object.
 #' @param saveoutput Logical. Should the output be saved to the path?
+#' @param suffix Character. Optional. A unique suffix used to save the files,
+#'     instead of the current date & time.
 #' @param thresh Numeric. The threshold used for the local false sign rate to
 #'     call significance in a condition.
 #'
@@ -681,7 +708,7 @@ mash_plot_Ulist <- function(m, range = NA, saveoutput = FALSE){
 #'
 #' @export
 mash_plot_manhattan_by_condition <- function(m, cond = NA, saveoutput = FALSE,
-                                             thresh = 0.05){
+                                             suffix = "", thresh = 0.05){
   num_sig_in_cond <- c()
 
   if(is.na(cond)[1]){
@@ -721,7 +748,13 @@ mash_plot_manhattan_by_condition <- function(m, cond = NA, saveoutput = FALSE,
     scale_shape_manual(values = rep(c(21,22),9), guide = FALSE)
 
   if(saveoutput == TRUE){
-    save_plot(paste0("Manhattan_mash_", get_date_filename(),
+    if(!(str_sub(suffix, end = 1) %in% c("", "_"))){
+      suffix <- paste0("_", suffix)
+    }
+    if(str_sub(suffix, end = 1) %in% c("")){
+      suffix <- get_date_filename()
+    }
+    save_plot(paste0("Manhattan_mash_", suffix,
                      ".png"), plot = ggmanobject, base_aspect_ratio = 2.4,
               base_height = 3)
   }
@@ -741,6 +774,8 @@ mash_plot_manhattan_by_condition <- function(m, cond = NA, saveoutput = FALSE,
 #' @param corrmatrix A correlation matrix
 #' @param reorder Logical. Should the columns be reordered by similarity?
 #' @param saveoutput Logical. Should the output be saved to the path?
+#' @param suffix Character. Optional. A unique suffix used to save the files,
+#'     instead of the current date & time.
 #' @param filename Character string with an output filename. Optional.
 #' @param ... Other arguments to \code{\link{get_pairwise_sharing}} or
 #'      \code{\link{ggcorr}}.
@@ -755,7 +790,8 @@ mash_plot_manhattan_by_condition <- function(m, cond = NA, saveoutput = FALSE,
 #' @export
 mash_plot_pairwise_sharing <- function(m = NULL, effectRDS = NULL,
                                        corrmatrix = NULL, reorder = TRUE,
-                                       saveoutput = FALSE, filename = NA, ...){
+                                       saveoutput = FALSE, filename = NA,
+                                       suffix = "", ...){
   # Additional arguments for get_pairwise_sharing, ggcorr, and save_plot
   requireNamespace("dots")
   factor <- dots::dots(name = 'factor', value = 0.5, ...)
@@ -776,8 +812,14 @@ mash_plot_pairwise_sharing <- function(m = NULL, effectRDS = NULL,
   base_aspect_ratio <- dots::dots(name = 'base_aspect_ratio', value = 1.1, ...)
 
   if(is.na(filename)[1]){
+    if(!(str_sub(suffix, end = 1) %in% c("", "_"))){
+      suffix <- paste0("_", suffix)
+    }
+    if(str_sub(suffix, end = 1) %in% c("")){
+      suffix <- get_date_filename()
+    }
     filename <- paste0("Mash_pairwise_shared_effects_",
-                       get_date_filename(), ".png")
+                       suffix, ".png")
   }
 
   # look for a shared effects matrix in the path, and if not, generate one
@@ -824,7 +866,7 @@ mash_plot_pairwise_sharing <- function(m = NULL, effectRDS = NULL,
   }
 
   if(saveoutput == TRUE){
-    save_plot(filename = filename, corrplot,
+        save_plot(filename = filename, corrplot,
               base_aspect_ratio = base_aspect_ratio, base_height = base_height,
               dpi = dpi)
   }
@@ -840,8 +882,10 @@ mash_plot_pairwise_sharing <- function(m = NULL, effectRDS = NULL,
 #' @param m An object of type mash
 #' @param conditions A vector of conditions. Get these with get_colnames(m).
 #' @param saveoutput Logical. Save plot output to a file? Default is FALSE.
-#' @param thresh What is the threshold to call an effect significant? Default is
-#'     0.05.
+#' @param thresh What is the threshold to call an effect significant? Default
+#'     is 0.05.
+#' @param suffix Character. Optional. A unique suffix used to save the files,
+#'     instead of the current date & time.
 #'
 #' @return A list containing a dataframe of the number of SNPs significant per
 #'     number of conditions, and a ggplot object using that dataframe.
@@ -855,7 +899,7 @@ mash_plot_pairwise_sharing <- function(m = NULL, effectRDS = NULL,
 #'
 #' @export
 mash_plot_sig_by_condition <- function(m, conditions = NA, saveoutput = FALSE,
-                                       thresh = 0.05){
+                                       suffix = "", thresh = 0.05){
 
   thresh <- as.numeric(thresh)
   num_sig_in_cond <- c()
@@ -883,9 +927,14 @@ mash_plot_sig_by_condition <- function(m, conditions = NA, saveoutput = FALSE,
     ylab(label = "Number of Significant SNPs")
 
   if(saveoutput == TRUE){
-    ggsave(paste0("SNPs_significant_by_number_of_conditions_",
-                  get_date_filename(),
-                  ".bmp"), width = 5, height = 3, units = "in", dpi = 400)
+    if(!(str_sub(suffix, end = 1) %in% c("", "_"))){
+      suffix <- paste0("_", suffix)
+    }
+    if(str_sub(suffix, end = 1) %in% c("")){
+      suffix <- get_date_filename()
+    }
+    ggsave(paste0("SNPs_significant_by_number_of_conditions_", suffix, ".png"),
+           width = 5, height = 3, units = "in", dpi = 400)
   }
 
   return(list(sighist = SigHist, ggobject = vis))

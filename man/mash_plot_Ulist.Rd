@@ -4,7 +4,7 @@
 \alias{mash_plot_Ulist}
 \title{ggplot of specific covariance matrix patterns}
 \usage{
-mash_plot_Ulist(m, range = NA, saveoutput = FALSE)
+mash_plot_Ulist(m, range = NA, saveoutput = FALSE, suffix = "")
 }
 \arguments{
 \item{m}{An object of type mash}
@@ -12,6 +12,9 @@ mash_plot_Ulist(m, range = NA, saveoutput = FALSE)
 \item{range}{Numeric vector. Which covariance matrices should be plotted?}
 
 \item{saveoutput}{Logical. Should the output be saved to the path?}
+
+\item{suffix}{Character. Optional. A unique suffix used to save the files,
+instead of the current date & time.}
 }
 \value{
 A list of dataframes used to make the tile plots and the plots
