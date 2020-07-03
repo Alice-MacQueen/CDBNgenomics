@@ -527,10 +527,10 @@ mash_plot_effects <- function(m, n = NA, i = NA, marker = TRUE,
       suffix <- paste0("_", suffix)
       }
     if(str_sub(suffix, end = 1) %in% c("")){
-      suffix <- get_date_filename()
+      suffix <- paste0("_", get_date_filename())
       }
       save_plot(filename = paste0("Effect_plot_", str_replace_all(marker_name,
-                                                              " ", "_"), "_",
+                                                              " ", "_"),
                                   suffix, ".png"),
                 plot = ggobject, base_aspect_ratio = 0.9, base_height = 3.5)
   }
@@ -584,9 +584,9 @@ mash_plot_covar <- function(m, saveoutput = FALSE, suffix = ""){
       suffix <- paste0("_", suffix)
     }
     if(str_sub(suffix, end = 1) %in% c("")){
-      suffix <- get_date_filename()
+      suffix <- paste0("_", get_date_filename())
     }
-    save_plot(paste0("Covariance_matrix_mass_plot_", suffix,
+    save_plot(paste0("Covariance_matrix_mass_plot", suffix,
                      ".png"), plot = ggobject, base_aspect_ratio = 1,
               base_height = 4)
   }
@@ -665,11 +665,10 @@ mash_plot_Ulist <- function(m, range = NA, saveoutput = FALSE, suffix = ""){
       suffix <- paste0("_", suffix)
     }
     if(str_sub(suffix, end = 1) %in% c("")){
-      suffix <- get_date_filename()
+      suffix <- paste0("_", get_date_filename())
     }
-    save_plot(paste0("Covariances_plot_", names(Ulist)[u], "_",
-                     suffix, ".png"), plot = U1_covar,
-              base_height = 3.8, base_asp = 1.3)
+    save_plot(paste0("Covariances_plot_", names(Ulist)[u], suffix, ".png"),
+              plot = U1_covar, base_height = 3.8, base_asp = 1.3)
     }
 
   }
@@ -752,9 +751,9 @@ mash_plot_manhattan_by_condition <- function(m, cond = NA, saveoutput = FALSE,
       suffix <- paste0("_", suffix)
     }
     if(str_sub(suffix, end = 1) %in% c("")){
-      suffix <- get_date_filename()
+      suffix <- paste0("_", get_date_filename())
     }
-    save_plot(paste0("Manhattan_mash_", suffix,
+    save_plot(paste0("Manhattan_mash", suffix,
                      ".png"), plot = ggmanobject, base_aspect_ratio = 2.4,
               base_height = 3)
   }
@@ -816,10 +815,9 @@ mash_plot_pairwise_sharing <- function(m = NULL, effectRDS = NULL,
       suffix <- paste0("_", suffix)
     }
     if(str_sub(suffix, end = 1) %in% c("")){
-      suffix <- get_date_filename()
+      suffix <- paste0("_", get_date_filename())
     }
-    filename <- paste0("Mash_pairwise_shared_effects_",
-                       suffix, ".png")
+    filename <- paste0("Mash_pairwise_shared_effects", suffix, ".png")
   }
 
   # look for a shared effects matrix in the path, and if not, generate one
@@ -931,9 +929,9 @@ mash_plot_sig_by_condition <- function(m, conditions = NA, saveoutput = FALSE,
       suffix <- paste0("_", suffix)
     }
     if(str_sub(suffix, end = 1) %in% c("")){
-      suffix <- get_date_filename()
+      suffix <- paste0("_", get_date_filename())
     }
-    ggsave(paste0("SNPs_significant_by_number_of_conditions_", suffix, ".png"),
+    ggsave(paste0("SNPs_significant_by_number_of_conditions", suffix, ".png"),
            width = 5, height = 3, units = "in", dpi = 400)
   }
 
