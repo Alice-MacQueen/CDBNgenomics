@@ -36,7 +36,7 @@ theme_set(theme_oeco)
 [![Travis build status](https://travis-ci.org/Alice-MacQueen/CDBNgenomics.svg?branch=master)](https://travis-ci.org/Alice-MacQueen/CDBNgenomics)
 <!-- badges: end -->
 
-The goal of CDBNgenomics is to allow for genome-wide association and other genomic work using genotype data for individuals from the Cooperative Dry Bean Nursery phenotypic dataset. It contains helper functions to visualize and analyze GAPIT GWAS results, to run mash analyses, and to visualize and analyze mash results using CDBN genotypic and phenotypic data. It also has the code necessary to replicate the analyses in the paper "Genetic Associations in Four Decades of Multi-Environment Trials Reveal Agronomic Trait Evolution in Common Bean".
+The goal of CDBNgenomics is to allow for genome-wide association and other genomic work using genotype data for individuals from the Cooperative Dry Bean Nursery phenotypic dataset. It contains helper functions to visualize and analyze GAPIT GWAS results, to run mash analyses, and to visualize and analyze mash results using CDBN genotypic and phenotypic data. It also has the code necessary to replicate the analyses in the paper [Genetic Associations in Four Decades of Multi-Environment Trials Reveal Agronomic Trait Evolution in Common Bean](https://www.genetics.org/content/215/1/267).
 
 ## Installation
 
